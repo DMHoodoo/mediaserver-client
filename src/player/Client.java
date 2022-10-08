@@ -24,6 +24,7 @@ import javafx.scene.media.MediaPlayer;
 public class Client {
 	static final int RPC_REQUEST_SUCCESS = 0;	
 	static final String RPC_REQUEST_LISTING = "requestlisting";
+	static final String RPC_REQUEST_FILE = "requestfile";
 	
 	//socket parts
 	private SSLSocketFactory socketfact;
@@ -69,6 +70,10 @@ public class Client {
 			System.out.println("Error creating client.");
 			closeEverything(socket, bufferedReader, bufferedWriter);
 		}
+	}
+	
+	public Boolean isConnected() {
+		return this.socket.isConnected();
 	}
 	
 	/**
@@ -199,9 +204,21 @@ public class Client {
 	 */
 	public void sendMediaRequest(String filename) {
 		try {
-			bufferedWriter.write(filename);
-			bufferedWriter.newLine(); //needed if server is using bufferedReader.readLine() to receive
-			bufferedWriter.flush();
+			System.out.println("Sending media request RPC_REQUEST_FILE = " + RPC_REQUEST_FILE + " filename= " + filename);
+			printWriter = new PrintWriter(new BufferedWriter(
+					new OutputStreamWriter(
+							socket.getOutputStream())));			
+			
+			printWriter.print(RPC_REQUEST_FILE + " " + filename);
+			
+			System.out.println("Sent RPC request");
+			
+			if(printWriter.checkError())
+				System.err.println("Client: Error writing to socket");
+			
+//			bufferedWriter.write(RPC_REQUEST_FILE + " " + filename);
+//			bufferedWriter.newLine(); //needed if server is using bufferedReader.readLine() to receive
+//			bufferedWriter.flush();
 		}catch(IOException e) {
 			e.printStackTrace();
 			System.out.println("Error sending message to the client.");
@@ -220,15 +237,83 @@ public class Client {
 
 			@Override
 			public void run() {
-				while(socket.isConnected()) {
+				if(socket.isConnected()) {
 					try {
-						String messageFromClient = bufferedReader.readLine();
+						System.out.println("Receiving media file");
+						
+						buffer = "-1";
+						
+						try {
+							buffer = bufferedReader.readLine();							
+						}catch(IOException e) {
+							System.out.println(e);
+						}
+						
+						buffer = buffer.replace("\n", "");
+						System.out.println("Name is " + buffer);
+
+						System.out.println("File path is= src/resources/" + buffer);
+						File file = new File("src/resources/" + buffer);
+						
+						System.out.println("Current full path = " + file.getAbsolutePath());
+						System.out.println("Canonical path = " + file.getCanonicalPath());
+
+						file.createNewFile();
+						
+						FileWriter fileWriter = new FileWriter(file);
+						
+//						BufferedWriter fileBuffer = new BufferedWriter(fileWriter);
+						
+						//// DEBUG CODE
+						File testfile = new File("src/resources/wtf.txt");
+						testfile.createNewFile();
+						FileWriter testFileWriter = new FileWriter(testfile);
+//						BufferedWriter testFileBuffer = new BufferedWriter(testFileWriter);
+//						testFileBuffer.write("This better work");
+						testFileWriter.write("Testing this thing");
+//						testFileBuffer.flush();
+//						testFileBuffer.close();
+						testFileWriter.close();
+						
+						//// DEBUG CODE
+						System.out.println("We're here atm");						
+//						buffer = bufferedReader.readLine();
+						System.out.println("Now we're here");
+//						System.out.println("The first buffer was " + buffer);
+						
+						while(!(buffer = bufferedReader.readLine()).equals("FOE")) {
+//						while((buffer = bufferedReader.readLine()) != null) {
+							System.out.println("Writing " + buffer + " to fileWriter");
+							for(int i = 0; i < buffer.length(); i++) {
+								int ascii = (int)buffer.charAt(i);
+								System.out.println(buffer.charAt(i) + "=" + ascii);
+							}
+							fileWriter.write(buffer);
+//							fileWriter.write("hmm");
+//							fileBuffer.write("somebody once told me");
+//							fileBuffer.newLine();
+							
+//							try {
+//								buffer = bufferedReader.readLine();							
+//							}catch(IOException e) {
+//								System.out.println(e);
+//							}
+							System.out.println("Buffer is " + buffer + " Does " + buffer + " = EOF? : " + (buffer.equals("EOF")));
+							
+						}
+						System.out.println("Now we're here");
+						
+//						bufferedWriter.close();
+						fileWriter.close();
+						closeEverything(socket, bufferedReader, bufferedWriter);
+//						String messageFromClient = bufferedReader.readLine();
+//						System.out.println(messageFromClient);
 						//Controller.addLabel(messageFromClient, player);
-					}catch(IOException e) {
+					}catch(Exception e) {
 						e.printStackTrace();
 						System.out.println("Error receiving message from the client");
 						closeEverything(socket, bufferedReader, bufferedWriter);
-						break;
+//						break;
 					}
 					}
 				}

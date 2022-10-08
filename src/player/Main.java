@@ -20,6 +20,7 @@ public class Main extends Application {
 
     public static void main(String[] args) {
     	System.out.println("Launching client");
+//    	System.setProperty("jsse.enableCBCProtection", "false");
         launch(args);
     }
 }

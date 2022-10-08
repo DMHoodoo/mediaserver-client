@@ -133,10 +133,11 @@ public class Controller implements Initializable {
 				client = new Client(socketfact);
 			}catch(Exception e) {
 				e.printStackTrace();
-				System.out.println("Error creating server.");
+				System.out.println("Error creating client.");
 			}
 		
 		client.receiveListFromServer(mediaList);
+		
         // To create a media player you need to implement the structure of the 3 nested media objects,
         // media, media player, and media view.
         // The media player wraps the media and the media view wraps the media player.
@@ -231,6 +232,7 @@ public class Controller implements Initializable {
 //        tempList.add("Song15");
 //        
         
+        
         // Play Button functionality
         buttonPPR.setOnAction(new EventHandler<ActionEvent>() {
             @Override
@@ -263,9 +265,27 @@ public class Controller implements Initializable {
         downloadBtn.setOnAction(new EventHandler<ActionEvent>() {
         	@Override
         	public void handle(ActionEvent actionEvent) {
+//        		if(!client.isConnected()) {
+        			System.out.println("Client is NOT connected");
+	    			try {
+	    				socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
+	    				client = new Client(socketfact);
+	    			}catch(Exception e) {
+	    				e.printStackTrace();
+	    				System.out.println("Error creating client.");
+	    			}        		
+//        		} else {
+//        			System.out.println("Client is connected");
+//        		}
+        		
         		Button downloadButton = (Button) actionEvent.getSource();
         		
         		System.out.println("Download button pressed");
+        		System.out.println("Selected item is " + mediaList.getSelectionModel().getSelectedItem());
+        		String fileName = mediaList.getSelectionModel().getSelectedItem();
+        		
+        		client.sendMediaRequest(fileName);
+        		client.receiveMediaFromServer(mpVideo);
         	}
         });
 
