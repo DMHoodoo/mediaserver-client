@@ -38,6 +38,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.ResourceBundle;
 import java.util.concurrent.Callable;
+import java.net.Socket;
 
 import javax.net.ssl.SSLSocketFactory;
 
@@ -70,7 +71,10 @@ public class Controller implements Initializable {
     @FXML
     private Button buttonPPR;
    
-
+    //Download Button
+    @FXML
+    private Button downloadBtn;
+    
     // Labels that are used to display the current and total time.
     @FXML
     private Label labelCurrentTime;
@@ -94,9 +98,7 @@ public class Controller implements Initializable {
     @FXML
     private Slider sliderTime;
     
-    //Download Button
-    @FXML
-    private Button downloadBtn;
+
     
     //SrollPane for media List
     @FXML
@@ -126,14 +128,15 @@ public class Controller implements Initializable {
     public void initialize(URL url, ResourceBundle resourceBundle) {
     	
     	//make server socket
-    	//		try {
-    	//			socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
-    	//			client = new Client(socketfact);
-    	//		}catch(Exception e) {
-    	//			e.printStackTrace();
-    	//			System.out.println("Error creating server.");
-    	//		}
-
+			try {
+				socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
+				client = new Client(socketfact);
+			}catch(Exception e) {
+				e.printStackTrace();
+				System.out.println("Error creating server.");
+			}
+		
+		client.receiveListFromServer(mediaList);
         // To create a media player you need to implement the structure of the 3 nested media objects,
         // media, media player, and media view.
         // The media player wraps the media and the media view wraps the media player.
@@ -204,26 +207,30 @@ public class Controller implements Initializable {
         
         //Functionality for media List scroll Pane will call recieve list method from client
         //for now uses premade arraylist
-       /*ArrayList<String> tempList = new ArrayList<>();
-        ObservableList<String> tempList = FXCollections.observableArrayList();
-        mediaList.setItems(tempList);
-        tempList.add("Song");
-        tempList.add("Song2");
-        tempList.add("Song3");
-        tempList.add("Song4");
-        tempList.add("Song5");
-        tempList.add("Song6");
-        tempList.add("Song7");
-        tempList.add("Song8");
-        tempList.add("Song9");
-        tempList.add("Song10");
-        tempList.add("Song11");
-        tempList.add("Song12");
-        tempList.add("Song13");
-        tempList.add("Song14");
-        tempList.add("Song15");*/
+       /*ArrayList<String> tempList = new ArrayList<>();*/
+//        mediaList = new ListView<String>();
+//        SSLSocketFactory test = new SSLSocketFactor();
+//        Client client = new Client();
         
-
+//        ObservableList<String> tempList = FXCollections.observableArrayList();
+//        mediaList.setItems(tempList);
+//        tempList.add("Song");
+//        tempList.add("Song2");
+//        tempList.add("Song3");
+//        tempList.add("Song4");
+//        tempList.add("Song5");
+//        tempList.add("Song6");
+//        tempList.add("Song7");
+//        tempList.add("Song8");
+//        tempList.add("Song9");
+//        tempList.add("Song10");
+//        tempList.add("Song11");
+//        tempList.add("Song12");
+//        tempList.add("Song13");
+//        tempList.add("Song14");
+//        tempList.add("Song15");
+//        
+        
         // Play Button functionality
         buttonPPR.setOnAction(new EventHandler<ActionEvent>() {
             @Override
@@ -251,6 +258,15 @@ public class Controller implements Initializable {
                     isPlaying = true;
                 }
             }
+        });
+        
+        downloadBtn.setOnAction(new EventHandler<ActionEvent>() {
+        	@Override
+        	public void handle(ActionEvent actionEvent) {
+        		Button downloadButton = (Button) actionEvent.getSource();
+        		
+        		System.out.println("Download button pressed");
+        	}
         });
 
         
