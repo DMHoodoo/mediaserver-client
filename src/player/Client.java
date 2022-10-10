@@ -73,7 +73,11 @@ public class Client {
 	}
 	
 	public Boolean isConnected() {
-		return this.socket.isConnected();
+		if(socket == null) {
+			return false;
+		}
+		else
+			return true;
 	}
 	
 	/**
@@ -87,16 +91,13 @@ public class Client {
 	public void receiveListFromServer(ListView<String> finalMediaList) {
 		System.out.println("Attempting to receive list from server");
 		
-		//needs to run on separate thread so server is not blocked 
-		//constantly waiting for messages
-		//DP: This is for single line text only. Needs to import ArrayList
 			new Thread(new Runnable() {
 
 				@Override
 				public void run() {
 					ObservableList<String> tempMediaList = FXCollections.observableArrayList();
 					System.out.println("Trying to get into initial while loop...");
-					if(socket.isConnected()) {
+					if(socket != null) {
 						System.out.println("Getting into first try");
 						try {
 							printWriter = new PrintWriter(new BufferedWriter(
@@ -188,7 +189,11 @@ public class Client {
 //							break;
 						}
 					}
-					
+					else {
+							ObservableList<String> error = FXCollections.observableArrayList();
+							error.add("Server Unavaiable.");
+							finalMediaList.setItems(error);
+						}
 				}
 				
 				}).start();

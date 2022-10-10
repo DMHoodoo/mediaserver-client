@@ -45,71 +45,56 @@ import javax.net.ssl.SSLSocketFactory;
 import player.Client;
 
 /**
- * Used when you want to interact with FXML items
+ * Class to manipulate and utilize the FXML GUI.
  */
 public class Controller implements Initializable {
 
-    // The main container of the application that holds everything.
+    //The main parent container
     @FXML
     private VBox vboxParent;
 
-
-    // Media objects used to display and work with the video.
+    //Media objects used to display and work with the video.
     @FXML
     private MediaView mvVideo;
     private MediaPlayer mpVideo;
     private Media mediaVideo;
 
-    // The HBox that contains all the elements below the video.
+    //The Primary HBox with control elements for media player.
     @FXML
     private HBox hBoxControls;
-    // HBox that contains the volume label and volume slider.
+    //HBox for volume label and volume slider.
     @FXML
     private HBox hboxVolume;
-
-    // The button that plays, pauses, and restarts.
+    //Volume Label.
     @FXML
-    private Button buttonPPR;
-   
-    //Download Button
+    private Label labelVolume;
+    //Volume slider.
     @FXML
-    private Button downloadBtn;
-    
-    // Labels that are used to display the current and total time.
+    private Slider sliderVolume;
+    //Current then total time labels.
     @FXML
     private Label labelCurrentTime;
     @FXML
     private Label labelTotalTime;
-    // Label that makes the application full screen.
-    @FXML
-    private Label labelFullScreen;
-    // Label that when clicked changes the speed of the application.
-    @FXML
-    private Label labelSpeed;
-    // The label that has the volume icon on it (mute and unmuted).
-    @FXML
-    private Label labelVolume;
-
-
-    // The slider used to change the volume.
-    @FXML
-    private Slider sliderVolume;
-    // Slider that lets you control and tracks the current time of the video.
+    //Time slider control.
     @FXML
     private Slider sliderTime;
-    
+    //Full screen button label.
+    @FXML
+    private Label labelFullScreen;
+    //Speed multiplier button.
+    @FXML
+    private Label labelSpeed;
+    //Play-Pause-Restart Button.
+    @FXML
+    private Button buttonPPR;
 
-    
     //SrollPane for media List
     @FXML
-    private ListView<String> mediaList;
-
-    // Checks if the video is at the end.
-    private boolean atEndOfVideo = false;
-    // Video is not playing when GUI starts.
-    private boolean isPlaying = true;
-    // Checks if the video is muted or not.
-    private boolean isMuted = true;
+    private ListView<String> mediaList;    
+    //Download Button for server downloads.
+    @FXML
+    private Button downloadBtn;
 
     // ImageViews for the buttons and labels.
     private ImageView ivPlay;
@@ -119,34 +104,51 @@ public class Controller implements Initializable {
     private ImageView ivFullScreen;
     private ImageView ivMute;
     private ImageView ivExit;
+    
+    //Private functional variables unrelated to FXML
+   
+    // Checks if the video is at the end.
+    private boolean atEndOfVideo = false;
+    // Video is not playing when GUI starts.
+    private boolean isPlaying = true;
+    // Checks if the video is muted or not.
+    private boolean isMuted = true;
 
+    //SSL Connection integration
     private Client client;
     private SSLSocketFactory socketfact;
 
-    // The initialize method is called after all @FXML annotated members have been injected.
+    /**
+     * Initializes all aspects of FXML GUI and manipulates their control.
+     */
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
     	
-    	//make server socket
-			try {
-				socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
-				client = new Client(socketfact);
-			}catch(Exception e) {
-				e.printStackTrace();
-				System.out.println("Error creating client.");
-			}
+    	/**
+    	 * make server socket
+    	 */
+    	try {
+    		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
+			client = new Client(socketfact);
+		}catch(Exception e) {
+			e.printStackTrace();
+			System.out.println("Error creating client.");
+		}		
+    	//request list of available media
+		client.receiveListFromServer(mediaList);	
 		
-		client.receiveListFromServer(mediaList);
-		
-        // To create a media player you need to implement the structure of the 3 nested media objects,
-        // media, media player, and media view.
-        // The media player wraps the media and the media view wraps the media player.
+		/**
+		 * Media Player creation. Media wrapped in player, player wrapped in view.
+		 */
         mediaVideo = new Media(new File("src/resources/LSDunes.mp4").toURI().toString());
         mpVideo = new MediaPlayer(mediaVideo);
         mpVideo.setAutoPlay(true);
         mvVideo.setMediaPlayer(mpVideo);
 
-        // Get the paths of the images and make them into images.
+        /*
+ 		 * BEGIN: Applying images to buttons
+         * Play button
+         */
         Image imagePlay = new Image(new File("src/resources/play-btn.png").toURI().toString());
         ivPlay = new ImageView(imagePlay);
         ivPlay.setFitWidth(35);
@@ -187,11 +189,13 @@ public class Controller implements Initializable {
         ivExit = new ImageView(imageExit);
         ivExit.setFitHeight(35);
         ivExit.setFitWidth(35);
-
         /*
-         * SET THE DEFAULTS AKA ORIGINALLY STATIC CONTENT
+         * END apply images
          */
-
+ 
+        /*
+         * Set default images
+         */
         // When started the button should have the pause sign because it is playing.
         buttonPPR.setGraphic(ivPause);
         // The video starts out muted so originally have the volume label be the muted speaker.
@@ -201,39 +205,9 @@ public class Controller implements Initializable {
         // The video starts out not in full screen so make the label image the get to full screen one.
         labelFullScreen.setGraphic(ivFullScreen);
 
-        hboxVolume.getChildren().remove(sliderVolume);
-
-        // We want to start out with the slider for the volume removed because we want it to appear
-        // When we hover over the volume label.
-        
-        //Functionality for media List scroll Pane will call recieve list method from client
-        //for now uses premade arraylist
-       /*ArrayList<String> tempList = new ArrayList<>();*/
-//        mediaList = new ListView<String>();
-//        SSLSocketFactory test = new SSLSocketFactor();
-//        Client client = new Client();
-        
-//        ObservableList<String> tempList = FXCollections.observableArrayList();
-//        mediaList.setItems(tempList);
-//        tempList.add("Song");
-//        tempList.add("Song2");
-//        tempList.add("Song3");
-//        tempList.add("Song4");
-//        tempList.add("Song5");
-//        tempList.add("Song6");
-//        tempList.add("Song7");
-//        tempList.add("Song8");
-//        tempList.add("Song9");
-//        tempList.add("Song10");
-//        tempList.add("Song11");
-//        tempList.add("Song12");
-//        tempList.add("Song13");
-//        tempList.add("Song14");
-//        tempList.add("Song15");
-//        
-        
-        
-        // Play Button functionality
+        /**
+         * Play Button functionality
+         */
         buttonPPR.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent actionEvent) {
@@ -262,23 +236,13 @@ public class Controller implements Initializable {
             }
         });
         
+        /**
+         * Download button functionality
+         */
         downloadBtn.setOnAction(new EventHandler<ActionEvent>() {
         	@Override
         	public void handle(ActionEvent actionEvent) {
-//        		if(!client.isConnected()) {
-        			System.out.println("Client is NOT connected");
-	    			try {
-	    				socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
-	    				client = new Client(socketfact);
-	    			}catch(Exception e) {
-	    				e.printStackTrace();
-	    				System.out.println("Error creating client.");
-	    			}        		
-//        		} else {
-//        			System.out.println("Client is connected");
-//        		}
         		
-        		Button downloadButton = (Button) actionEvent.getSource();
         		
         		System.out.println("Download button pressed");
         		System.out.println("Selected item is " + mediaList.getSelectionModel().getSelectedItem());
@@ -424,7 +388,7 @@ public class Controller implements Initializable {
         mpVideo.totalDurationProperty().addListener(new ChangeListener<Duration>() {
             @Override
             public void changed(ObservableValue<? extends Duration> observableValue, Duration oldDuration, Duration newDuration) {
-                // Note that duraiton is originally in milliseconds.
+                // Note that duration is originally in milliseconds.
                 // newDuration is the time of the current video, oldDuration is the duration of the previous video.
                 sliderTime.setMax(newDuration.toSeconds());
                 labelTotalTime.setText(getTime(newDuration));
