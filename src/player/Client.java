@@ -83,16 +83,12 @@ public class Client {
 	/**
 	 * Accept list of available filenames from Server\
 	 * 
-	 * 
-	 * DP:method needed in controller to link a scroll list to this received list
-	 * DP: assume method needs to be made ArrayList to return list.
-	 * 
+	 * @param Listview to contain items
 	 */
 	public void receiveListFromServer(ListView<String> finalMediaList) {
 		System.out.println("Attempting to receive list from server");
 		
 			new Thread(new Runnable() {
-
 				@Override
 				public void run() {
 					ObservableList<String> tempMediaList = FXCollections.observableArrayList();
@@ -107,6 +103,8 @@ public class Client {
 							printWriter.print(RPC_REQUEST_LISTING);
 							
 							System.out.println("Sent RPC request");
+							
+							printWriter.flush();
 							
 							if(printWriter.checkError())
 								System.err.println("Client: Error writing to socket");
@@ -203,9 +201,7 @@ public class Client {
 	 * Sends message to server via String to request a certain file from the list of 
 	 * available media.
 	 * 
-	 * DP:needs placed in controller with scrollbox clickable control
-	 * 
-	 * @param filename
+	 * @param filename selected from media list
 	 */
 	public void sendMediaRequest(String filename) {
 		try {
@@ -234,94 +230,45 @@ public class Client {
 	/**
 	 * Receive media file from server
 	 * 
-	 * DP: This needs to be sent file size as well as file name
-	 * DP: This is not correct and is currently based on txt messages
+	 * @param media player to insert media into
 	 */
-	public void receiveMediaFromServer(MediaPlayer player) {
+	public void receiveMediaFromServer(String fileName) {
 		new Thread(new Runnable() {
 
 			@Override
 			public void run() {
-				if(socket.isConnected()) {
+				if(socket != null) {
 					try {
-						System.out.println("Receiving media file");
+						bufferedReader = new BufferedReader(new InputStreamReader(
+								socket.getInputStream()));
 						
-						buffer = "-1";
+						String fileSize = bufferedReader.readLine();
+						System.out.println("File Size is: " + fileSize);
+						int size = Integer.parseInt(fileSize);
+						System.out.println("File Size is: " + size);
 						
-						try {
-							buffer = bufferedReader.readLine();							
-						}catch(IOException e) {
-							System.out.println(e);
-						}
-						
-						buffer = buffer.replace("\n", "");
-						System.out.println("Name is " + buffer);
-
-						System.out.println("File path is= src/resources/" + buffer);
-						File file = new File("src/resources/" + buffer);
-						
-						System.out.println("Current full path = " + file.getAbsolutePath());
-						System.out.println("Canonical path = " + file.getCanonicalPath());
-
-						file.createNewFile();
-						
-						FileWriter fileWriter = new FileWriter(file);
-						
-//						BufferedWriter fileBuffer = new BufferedWriter(fileWriter);
-						
-						//// DEBUG CODE
-						File testfile = new File("src/resources/wtf.txt");
-						testfile.createNewFile();
-						FileWriter testFileWriter = new FileWriter(testfile);
-//						BufferedWriter testFileBuffer = new BufferedWriter(testFileWriter);
-//						testFileBuffer.write("This better work");
-						testFileWriter.write("Testing this thing");
-//						testFileBuffer.flush();
-//						testFileBuffer.close();
-						testFileWriter.close();
-						
-						//// DEBUG CODE
-						System.out.println("We're here atm");						
-//						buffer = bufferedReader.readLine();
-						System.out.println("Now we're here");
-//						System.out.println("The first buffer was " + buffer);
-						
-						while(!(buffer = bufferedReader.readLine()).equals("FOE")) {
-//						while((buffer = bufferedReader.readLine()) != null) {
-							System.out.println("Writing " + buffer + " to fileWriter");
-							for(int i = 0; i < buffer.length(); i++) {
-								int ascii = (int)buffer.charAt(i);
-								System.out.println(buffer.charAt(i) + "=" + ascii);
-							}
-							fileWriter.write(buffer);
-//							fileWriter.write("hmm");
-//							fileBuffer.write("somebody once told me");
-//							fileBuffer.newLine();
+						DataInputStream dis = new DataInputStream(socket.getInputStream());
+						//File file = new File("src/resources/" + fileName);
+						FileOutputStream fos = new FileOutputStream("src/resources/" + fileName);
 							
-//							try {
-//								buffer = bufferedReader.readLine();							
-//							}catch(IOException e) {
-//								System.out.println(e);
-//							}
-							System.out.println("Buffer is " + buffer + " Does " + buffer + " = EOF? : " + (buffer.equals("EOF")));
-							
-						}
-						System.out.println("Now we're here");
-						
-//						bufferedWriter.close();
-						fileWriter.close();
-						closeEverything(socket, bufferedReader, bufferedWriter);
-//						String messageFromClient = bufferedReader.readLine();
-//						System.out.println(messageFromClient);
-						//Controller.addLabel(messageFromClient, player);
-					}catch(Exception e) {
+					byte[] buffer = new byte[256];
+					
+					
+					int read = 0;
+					int totalRead = 0;
+					int remaining = size;
+					while((read = dis.read(buffer, 0, Math.min(buffer.length, remaining))) > 0) {
+						totalRead += read;
+						remaining -= read;
+						System.out.println("read " + totalRead + " bytes.");
+						fos.write(buffer, 0, read);
+					}
+					} catch (IOException e) {
+						System.out.println("Error making input file streams.");
 						e.printStackTrace();
-						System.out.println("Error receiving message from the client");
-						closeEverything(socket, bufferedReader, bufferedWriter);
-//						break;
-					}
-					}
+					}	
 				}
+			}
 			}).start();
 	}
 	

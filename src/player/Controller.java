@@ -242,14 +242,27 @@ public class Controller implements Initializable {
         downloadBtn.setOnAction(new EventHandler<ActionEvent>() {
         	@Override
         	public void handle(ActionEvent actionEvent) {
-        		
-        		
+        		        		
         		System.out.println("Download button pressed");
         		System.out.println("Selected item is " + mediaList.getSelectionModel().getSelectedItem());
         		String fileName = mediaList.getSelectionModel().getSelectedItem();
         		
+        		//DP: make new connetion - could probably maintain same connection
+        		//with server code change
+        		try {
+            		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
+        			client = new Client(socketfact);
+        		}catch(Exception e) {
+        			e.printStackTrace();
+        			System.out.println("Error creating client.");
+        		}
+        		
+        		//ask server for file
         		client.sendMediaRequest(fileName);
-        		client.receiveMediaFromServer(mpVideo);
+        		System.out.println(fileName);
+        		
+        		//
+        		client.receiveMediaFromServer(fileName);
         	}
         });
 
