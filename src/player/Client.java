@@ -74,27 +74,30 @@ public class Client {
 	}
 	
 	public Boolean isConnected() {
-		if(socket == null) {
-			return false;
-		}
-		else
-			return true;
+		return this.socket.isConnected();
 	}
 	
 	/**
 	 * Accept list of available filenames from Server\
 	 * 
-	 * @param Listview to contain items
+	 * 
+	 * DP:method needed in controller to link a scroll list to this received list
+	 * DP: assume method needs to be made ArrayList to return list.
+	 * 
 	 */
 	public void receiveListFromServer(ListView<String> finalMediaList) {
 		System.out.println("Attempting to receive list from server");
 		
+		//needs to run on separate thread so server is not blocked 
+		//constantly waiting for messages
+		//DP: This is for single line text only. Needs to import ArrayList
 			new Thread(new Runnable() {
+
 				@Override
 				public void run() {
 					ObservableList<String> tempMediaList = FXCollections.observableArrayList();
 					System.out.println("Trying to get into initial while loop...");
-					if(socket != null) {
+					if(socket.isConnected()) {
 						System.out.println("Getting into first try");
 						try {
 							printWriter = new PrintWriter(new BufferedWriter(
@@ -104,8 +107,6 @@ public class Client {
 							printWriter.print(RPC_REQUEST_LISTING);
 							
 							System.out.println("Sent RPC request");
-							
-							printWriter.flush();
 							
 							if(printWriter.checkError())
 								System.err.println("Client: Error writing to socket");
@@ -188,11 +189,7 @@ public class Client {
 //							break;
 						}
 					}
-					else {
-							ObservableList<String> error = FXCollections.observableArrayList();
-							error.add("Server Unavaiable.");
-							finalMediaList.setItems(error);
-						}
+					
 				}
 				
 				}).start();
@@ -202,7 +199,9 @@ public class Client {
 	 * Sends message to server via String to request a certain file from the list of 
 	 * available media.
 	 * 
-	 * @param filename selected from media list
+	 * DP:needs placed in controller with scrollbox clickable control
+	 * 
+	 * @param filename
 	 */
 	public void sendMediaRequest(String filename) {
 		try {
@@ -231,13 +230,15 @@ public class Client {
 	/**
 	 * Receive media file from server
 	 * 
+	 * DP: This needs to be sent file size as well as file name
+	 * DP: This is not correct and is currently based on txt messages
 	 * @param fileName of sought after media
 	 */
-	public void receiveMediaFromServer(String fileName, CountDownLatch threadSignal) {
 		new Thread(new Runnable() {
 
 			@Override
 			public void run() {
+				if(socket.isConnected()) {
 				int size;
 				byte[] buffer;
 				int read;
@@ -246,32 +247,86 @@ public class Client {
 				
 				if(socket != null) {
 					try {
-						//initial read of file size
-						bufferedReader = new BufferedReader(new InputStreamReader(
-								socket.getInputStream()));
-						size = Integer.parseInt(bufferedReader.readLine());
-						System.out.println("File Size is: " + size);
+						System.out.println("Receiving media file");
 						
+						buffer = "-1";
+						
+						try {
+							buffer = bufferedReader.readLine();							
+						}catch(IOException e) {
+							System.out.println(e);
+						}
+						
+						buffer = buffer.replace("\n", "");
+						System.out.println("Name is " + buffer);
 						//second read for file data
 						DataInputStream dis = new DataInputStream(socket.getInputStream());
 						FileOutputStream fos = new FileOutputStream("src/cache/" + fileName);
 							
 						buffer = new byte[256];				
 
+						System.out.println("File path is= src/resources/" + buffer);
+						File file = new File("src/resources/" + buffer);
 						remaining = size;
 						
-						//receive file and store in cache
-						while((read = dis.read(buffer, 0, Math.min(buffer.length, remaining))) > 0) {
-							totalRead += read;
-							remaining -= read;
-							fos.write(buffer, 0, read);
+						System.out.println("Current full path = " + file.getAbsolutePath());
+						System.out.println("Canonical path = " + file.getCanonicalPath());
+
+						file.createNewFile();
+						
+						FileWriter fileWriter = new FileWriter(file, true);
+						
+//						BufferedWriter fileBuffer = new BufferedWriter(fileWriter);
+						
+						//// DEBUG CODE
+						File testfile = new File("src/resources/wtf.txt");
+						testfile.createNewFile();
+						FileWriter testFileWriter = new FileWriter(testfile);
+//						BufferedWriter testFileBuffer = new BufferedWriter(testFileWriter);
+//						testFileBuffer.write("This better work");
+						testFileWriter.write("Testing this thing");
+//						testFileBuffer.flush();
+//						testFileBuffer.close();
+						testFileWriter.close();
+						
+						//// DEBUG CODE
+						System.out.println("We're here atm");						
+//						buffer = bufferedReader.readLine();
+						System.out.println("Now we're here");
+//						System.out.println("The first buffer was " + buffer);
+						
+//						bufferedWriter = new BufferedWriter(fileWriter);
+						
+						int total = 0;
+						while(!(buffer = bufferedReader.readLine()).equals("FOE")) {
+//						while((buffer = bufferedReader.readLine()) != null) {
+							total += buffer.getBytes().length;
+							System.out.println("Writing " + total);
+//							for(int i = 0; i < buffer.length(); i++) {
+//								int ascii = (int)buffer.charAt(i);
+//								System.out.println(buffer.charAt(i) + "=" + ascii);
+//							}
+//							buffer = buffer.replace("\0", "");
+//							bufferedWriter.write(buffer);
+							fileWriter.write(buffer);
+//							fileWriter.write("hmm");
+//							fileBuffer.write("somebody once told me");
+//							fileBuffer.newLine();
+							
+//							try {
+//								buffer = bufferedReader.readLine();							
+//							}catch(IOException e) {
+//								System.out.println(e);
+//							}
+//							System.out.println("Buffer is " + buffer + " Does " + buffer + " = EOF? : " + (buffer.equals("EOF")));
+							
 						}
-						
-						threadSignal.countDown();
-						
-					} catch (IOException e) {
-						System.out.println("Error making input file streams.");
 						e.printStackTrace();
+						System.out.println("Error receiving message from the client");
+						closeEverything(socket, bufferedReader, bufferedWriter);
+//						break;
+					}
+					}
 					}	
 				}
 			}
