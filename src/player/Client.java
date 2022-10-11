@@ -260,7 +260,7 @@ public class Client {
 
 						file.createNewFile();
 						
-						FileWriter fileWriter = new FileWriter(file);
+						FileWriter fileWriter = new FileWriter(file, true);
 						
 //						BufferedWriter fileBuffer = new BufferedWriter(fileWriter);
 						
@@ -281,13 +281,19 @@ public class Client {
 						System.out.println("Now we're here");
 //						System.out.println("The first buffer was " + buffer);
 						
+//						bufferedWriter = new BufferedWriter(fileWriter);
+						
+						int total = 0;
 						while(!(buffer = bufferedReader.readLine()).equals("FOE")) {
 //						while((buffer = bufferedReader.readLine()) != null) {
-							System.out.println("Writing " + buffer + " to fileWriter");
-							for(int i = 0; i < buffer.length(); i++) {
-								int ascii = (int)buffer.charAt(i);
-								System.out.println(buffer.charAt(i) + "=" + ascii);
-							}
+							total += buffer.getBytes().length;
+							System.out.println("Writing " + total);
+//							for(int i = 0; i < buffer.length(); i++) {
+//								int ascii = (int)buffer.charAt(i);
+//								System.out.println(buffer.charAt(i) + "=" + ascii);
+//							}
+//							buffer = buffer.replace("\0", "");
+//							bufferedWriter.write(buffer);
 							fileWriter.write(buffer);
 //							fileWriter.write("hmm");
 //							fileBuffer.write("somebody once told me");
@@ -298,7 +304,7 @@ public class Client {
 //							}catch(IOException e) {
 //								System.out.println(e);
 //							}
-							System.out.println("Buffer is " + buffer + " Does " + buffer + " = EOF? : " + (buffer.equals("EOF")));
+//							System.out.println("Buffer is " + buffer + " Does " + buffer + " = EOF? : " + (buffer.equals("EOF")));
 							
 						}
 						System.out.println("Now we're here");
