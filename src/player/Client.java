@@ -230,39 +230,41 @@ public class Client {
 	/**
 	 * Receive media file from server
 	 * 
-	 * @param media player to insert media into
+	 * @param fileName of sought after media
 	 */
 	public void receiveMediaFromServer(String fileName) {
 		new Thread(new Runnable() {
 
 			@Override
 			public void run() {
+				int size;
+				byte[] buffer;
+				int read;
+				int totalRead = 0;
+				int remaining = 0;
+				
 				if(socket != null) {
 					try {
+						//initial read of file size
 						bufferedReader = new BufferedReader(new InputStreamReader(
 								socket.getInputStream()));
-						
-						String fileSize = bufferedReader.readLine();
-						System.out.println("File Size is: " + fileSize);
-						int size = Integer.parseInt(fileSize);
+						size = Integer.parseInt(bufferedReader.readLine());
 						System.out.println("File Size is: " + size);
 						
+						//second read for file data
 						DataInputStream dis = new DataInputStream(socket.getInputStream());
-						//File file = new File("src/resources/" + fileName);
-						FileOutputStream fos = new FileOutputStream("src/resources/" + fileName);
+						FileOutputStream fos = new FileOutputStream("src/cache/" + fileName);
 							
-					byte[] buffer = new byte[256];
-					
-					
-					int read = 0;
-					int totalRead = 0;
-					int remaining = size;
-					while((read = dis.read(buffer, 0, Math.min(buffer.length, remaining))) > 0) {
-						totalRead += read;
-						remaining -= read;
-						System.out.println("read " + totalRead + " bytes.");
-						fos.write(buffer, 0, read);
-					}
+						buffer = new byte[256];				
+
+						remaining = size;
+						
+						//receive file and store in cache
+						while((read = dis.read(buffer, 0, Math.min(buffer.length, remaining))) > 0) {
+							totalRead += read;
+							remaining -= read;
+							fos.write(buffer, 0, read);
+						}
 					} catch (IOException e) {
 						System.out.println("Error making input file streams.");
 						e.printStackTrace();

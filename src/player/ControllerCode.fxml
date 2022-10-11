@@ -17,7 +17,7 @@
    <center>
       <VBox fx:id="vboxParent" alignment="CENTER" minHeight="0.0" minWidth="0.0">
          <children>
-            <MediaView fx:id="mvVideo" />
+            <MediaView fx:id="mediaView" />
             <Slider fx:id="sliderTime" style="-fx-cursor: hand;">
                <padding>
                   <Insets bottom="5.0" left="10.0" right="10.0" top="5.0" />
