@@ -1,2 +1,4 @@
 src/cache/*
-bin/
+bin/client/
+bin/player/
+bin/resources/
