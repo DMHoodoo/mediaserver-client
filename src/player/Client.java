@@ -74,7 +74,11 @@ public class Client {
 	}
 	
 	public Boolean isConnected() {
-		return this.socket.isConnected();
+		if(socket == null) {
+			return false;
+		}
+		else
+			return true;
 	}
 	
 	/**
@@ -97,7 +101,7 @@ public class Client {
 				public void run() {
 					ObservableList<String> tempMediaList = FXCollections.observableArrayList();
 					System.out.println("Trying to get into initial while loop...");
-					if(socket.isConnected()) {
+					if(socket != null) {
 						System.out.println("Getting into first try");
 						try {
 							printWriter = new PrintWriter(new BufferedWriter(
@@ -234,11 +238,11 @@ public class Client {
 	 * DP: This is not correct and is currently based on txt messages
 	 * @param fileName of sought after media
 	 */
+	public void receiveMediaFromServer(String fileName, CountDownLatch threadSignal) {	
 		new Thread(new Runnable() {
 
 			@Override
 			public void run() {
-				if(socket.isConnected()) {
 				int size;
 				byte[] buffer;
 				int read;
@@ -247,90 +251,35 @@ public class Client {
 				
 				if(socket != null) {
 					try {
-						System.out.println("Receiving media file");
+						//initial read of file size
+						bufferedReader = new BufferedReader(new InputStreamReader(
+								socket.getInputStream()));
+						size = Integer.parseInt(bufferedReader.readLine());
+						System.out.println("File Size is: " + size);
 						
-						buffer = "-1";
-						
-						try {
-							buffer = bufferedReader.readLine();							
-						}catch(IOException e) {
-							System.out.println(e);
-						}
-						
-						buffer = buffer.replace("\n", "");
-						System.out.println("Name is " + buffer);
 						//second read for file data
 						DataInputStream dis = new DataInputStream(socket.getInputStream());
 						FileOutputStream fos = new FileOutputStream("src/cache/" + fileName);
 							
 						buffer = new byte[256];				
 
-						System.out.println("File path is= src/resources/" + buffer);
-						File file = new File("src/resources/" + buffer);
 						remaining = size;
 						
-						System.out.println("Current full path = " + file.getAbsolutePath());
-						System.out.println("Canonical path = " + file.getCanonicalPath());
-
-						file.createNewFile();
-						
-						FileWriter fileWriter = new FileWriter(file, true);
-						
-//						BufferedWriter fileBuffer = new BufferedWriter(fileWriter);
-						
-						//// DEBUG CODE
-						File testfile = new File("src/resources/wtf.txt");
-						testfile.createNewFile();
-						FileWriter testFileWriter = new FileWriter(testfile);
-//						BufferedWriter testFileBuffer = new BufferedWriter(testFileWriter);
-//						testFileBuffer.write("This better work");
-						testFileWriter.write("Testing this thing");
-//						testFileBuffer.flush();
-//						testFileBuffer.close();
-						testFileWriter.close();
-						
-						//// DEBUG CODE
-						System.out.println("We're here atm");						
-//						buffer = bufferedReader.readLine();
-						System.out.println("Now we're here");
-//						System.out.println("The first buffer was " + buffer);
-						
-//						bufferedWriter = new BufferedWriter(fileWriter);
-						
-						int total = 0;
-						while(!(buffer = bufferedReader.readLine()).equals("FOE")) {
-//						while((buffer = bufferedReader.readLine()) != null) {
-							total += buffer.getBytes().length;
-							System.out.println("Writing " + total);
-//							for(int i = 0; i < buffer.length(); i++) {
-//								int ascii = (int)buffer.charAt(i);
-//								System.out.println(buffer.charAt(i) + "=" + ascii);
-//							}
-//							buffer = buffer.replace("\0", "");
-//							bufferedWriter.write(buffer);
-							fileWriter.write(buffer);
-//							fileWriter.write("hmm");
-//							fileBuffer.write("somebody once told me");
-//							fileBuffer.newLine();
-							
-//							try {
-//								buffer = bufferedReader.readLine();							
-//							}catch(IOException e) {
-//								System.out.println(e);
-//							}
-//							System.out.println("Buffer is " + buffer + " Does " + buffer + " = EOF? : " + (buffer.equals("EOF")));
-							
+						//receive file and store in cache
+						while((read = dis.read(buffer, 0, Math.min(buffer.length, remaining))) > 0) {
+							totalRead += read;
+							remaining -= read;
+							fos.write(buffer, 0, read);
 						}
+						
+						threadSignal.countDown();
+					} catch (IOException e) {
+						System.out.println("Error making input file streams.");
 						e.printStackTrace();
-						System.out.println("Error receiving message from the client");
-						closeEverything(socket, bufferedReader, bufferedWriter);
-//						break;
-					}
-					}
 					}	
 				}
 			}
-			}).start();
+		}).start();
 	}
 	
 	
