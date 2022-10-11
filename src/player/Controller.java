@@ -45,71 +45,56 @@ import javax.net.ssl.SSLSocketFactory;
 import player.Client;
 
 /**
- * Used when you want to interact with FXML items
+ * Class to manipulate and utilize the FXML GUI.
  */
 public class Controller implements Initializable {
 
-    // The main container of the application that holds everything.
+    //The main parent container
     @FXML
     private VBox vboxParent;
 
-
-    // Media objects used to display and work with the video.
+    //Media objects used to display and work with the video.
     @FXML
-    private MediaView mvVideo;
-    private MediaPlayer mpVideo;
-    private Media mediaVideo;
+    private MediaView mediaView;
+    private MediaPlayer mediaPlayer;
+    private Media mediaFile;
 
-    // The HBox that contains all the elements below the video.
+    //The Primary HBox with control elements for media player.
     @FXML
     private HBox hBoxControls;
-    // HBox that contains the volume label and volume slider.
+    //HBox for volume label and volume slider.
     @FXML
     private HBox hboxVolume;
-
-    // The button that plays, pauses, and restarts.
+    //Volume Label.
     @FXML
-    private Button buttonPPR;
-   
-    //Download Button
+    private Label labelVolume;
+    //Volume slider.
     @FXML
-    private Button downloadBtn;
-    
-    // Labels that are used to display the current and total time.
+    private Slider sliderVolume;
+    //Current then total time labels.
     @FXML
     private Label labelCurrentTime;
     @FXML
     private Label labelTotalTime;
-    // Label that makes the application full screen.
-    @FXML
-    private Label labelFullScreen;
-    // Label that when clicked changes the speed of the application.
-    @FXML
-    private Label labelSpeed;
-    // The label that has the volume icon on it (mute and unmuted).
-    @FXML
-    private Label labelVolume;
-
-
-    // The slider used to change the volume.
-    @FXML
-    private Slider sliderVolume;
-    // Slider that lets you control and tracks the current time of the video.
+    //Time slider control.
     @FXML
     private Slider sliderTime;
-    
+    //Full screen button label.
+    @FXML
+    private Label labelFullScreen;
+    //Speed multiplier button.
+    @FXML
+    private Label labelSpeed;
+    //Play-Pause-Restart Button.
+    @FXML
+    private Button buttonPPR;
 
-    
     //SrollPane for media List
     @FXML
-    private ListView<String> mediaList;
-
-    // Checks if the video is at the end.
-    private boolean atEndOfVideo = false;
-    // Video is not playing when GUI starts.
-    private boolean isPlaying = true;
-    // Checks if the video is muted or not.
-    private boolean isMuted = true;
+    private ListView<String> mediaList;    
+    //Download Button for server downloads.
+    @FXML
+    private Button downloadBtn;
 
     // ImageViews for the buttons and labels.
     private ImageView ivPlay;
@@ -119,79 +104,86 @@ public class Controller implements Initializable {
     private ImageView ivFullScreen;
     private ImageView ivMute;
     private ImageView ivExit;
-
+    
+    //Private functional variables unrelated to FXML
+   
+    // Checks if the video is at the end.
+    private boolean atEndOfVideo = false;
+    // Video is not playing when GUI starts.
+    private boolean isPlaying = true;
+    // Checks if the video is muted or not.
+    private boolean isMuted = true;
+    private final String RES = "src/resources/";
+    private final String CACHE = "src/cache/";
+    
+    //SSL Connection integration
     private Client client;
     private SSLSocketFactory socketfact;
 
-    // The initialize method is called after all @FXML annotated members have been injected.
+    /**
+     * Initializes all aspects of FXML GUI and manipulates their control.
+     */
     @Override
-    public void initialize(URL url, ResourceBundle resourceBundle) {
-    	
-    	//make server socket
-			try {
-				socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
-				client = new Client(socketfact);
-			}catch(Exception e) {
-				e.printStackTrace();
-				System.out.println("Error creating client.");
-			}
-		
-		client.receiveListFromServer(mediaList);
-		
-        // To create a media player you need to implement the structure of the 3 nested media objects,
-        // media, media player, and media view.
-        // The media player wraps the media and the media view wraps the media player.
-        mediaVideo = new Media(new File("src/resources/LSDunes.mp4").toURI().toString());
-        mpVideo = new MediaPlayer(mediaVideo);
-        mpVideo.setAutoPlay(true);
-        mvVideo.setMediaPlayer(mpVideo);
+    public void initialize(URL url, ResourceBundle resourceBundle) {			
+		/**
+		 * Media Player creation. Media wrapped in player, player wrapped in view.
+		 */
+        mediaFile = new Media(new File(RES + "LSDunes.mp4").toURI().toString());
+        mediaPlayer = new MediaPlayer(mediaFile);
+        mediaPlayer.setAutoPlay(true);
+        mediaView.setMediaPlayer(mediaPlayer);
 
-        // Get the paths of the images and make them into images.
-        Image imagePlay = new Image(new File("src/resources/play-btn.png").toURI().toString());
+        /*
+ 		 * BEGIN: Applying images to buttons
+         * Play button
+         */
+        Image imagePlay = new Image(new File(RES + "play-btn.png").toURI().toString());
         ivPlay = new ImageView(imagePlay);
         ivPlay.setFitWidth(35);
         ivPlay.setFitHeight(35);
 
         // Button stop image.
-        Image imageStop = new Image(new File("src/resources/stop-btn.png").toURI().toString());
+        Image imageStop = new Image(new File(RES + "stop-btn.png").toURI().toString());
         ivPause = new ImageView(imageStop);
         ivPause.setFitHeight(35);
         ivPause.setFitWidth(35);
 
         // Restart button image.
-        Image imageRestart = new Image(new File("src/resources/restart-btn.png").toURI().toString());
+        Image imageRestart = new Image(new File(RES + "restart-btn.png").toURI().toString());
         ivRestart = new ImageView(imageRestart);
         ivRestart.setFitWidth(35);
         ivRestart.setFitHeight(35);
 
         // Volume (speaker) image.
-        Image imageVol = new Image(new File("src/resources/volume.png").toURI().toString());
+        Image imageVol = new Image(new File(RES + "volume.png").toURI().toString());
         ivVolume = new ImageView(imageVol);
         ivVolume.setFitWidth(35);
         ivVolume.setFitHeight(35);
 
         // Full screen image.
-        Image imageFull = new Image(new File("src/resources/fullscreen.png").toURI().toString());
+        Image imageFull = new Image(new File(RES + "fullscreen.png").toURI().toString());
         ivFullScreen = new ImageView(imageFull);
         ivFullScreen.setFitHeight(35);
         ivFullScreen.setFitWidth(35);
 
         // Muted speaker image.
-        Image imageMute = new Image(new File("src/resources/mute.png").toURI().toString());
+        Image imageMute = new Image(new File(RES + "mute.png").toURI().toString());
         ivMute = new ImageView(imageMute);
         ivMute.setFitWidth(35);
         ivMute.setFitHeight(35);
 
         // Exit full screen image.
-        Image imageExit = new Image(new File("src/resources/exitscreen.png").toURI().toString());
+        Image imageExit = new Image(new File(RES + "exitscreen.png").toURI().toString());
         ivExit = new ImageView(imageExit);
         ivExit.setFitHeight(35);
         ivExit.setFitWidth(35);
-
         /*
-         * SET THE DEFAULTS AKA ORIGINALLY STATIC CONTENT
+         * END apply images
          */
-
+ 
+        /*
+         * Set default images
+         */
         // When started the button should have the pause sign because it is playing.
         buttonPPR.setGraphic(ivPause);
         // The video starts out muted so originally have the volume label be the muted speaker.
@@ -200,108 +192,111 @@ public class Controller implements Initializable {
         labelSpeed.setText("1X");
         // The video starts out not in full screen so make the label image the get to full screen one.
         labelFullScreen.setGraphic(ivFullScreen);
-
-        hboxVolume.getChildren().remove(sliderVolume);
-
-        // We want to start out with the slider for the volume removed because we want it to appear
-        // When we hover over the volume label.
+    	
+    	/**
+    	 * make server socket
+    	 */
+    	try {
+    		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
+			client = new Client(socketfact);
+		}catch(Exception e) {
+			e.printStackTrace();
+			System.out.println("Error creating client.");
+		}		
+    	//request list of available media
+		client.receiveListFromServer(mediaList);
         
-        //Functionality for media List scroll Pane will call recieve list method from client
-        //for now uses premade arraylist
-       /*ArrayList<String> tempList = new ArrayList<>();*/
-//        mediaList = new ListView<String>();
-//        SSLSocketFactory test = new SSLSocketFactor();
-//        Client client = new Client();
-        
-//        ObservableList<String> tempList = FXCollections.observableArrayList();
-//        mediaList.setItems(tempList);
-//        tempList.add("Song");
-//        tempList.add("Song2");
-//        tempList.add("Song3");
-//        tempList.add("Song4");
-//        tempList.add("Song5");
-//        tempList.add("Song6");
-//        tempList.add("Song7");
-//        tempList.add("Song8");
-//        tempList.add("Song9");
-//        tempList.add("Song10");
-//        tempList.add("Song11");
-//        tempList.add("Song12");
-//        tempList.add("Song13");
-//        tempList.add("Song14");
-//        tempList.add("Song15");
-//        
-        
-        
-        // Play Button functionality
+        /**
+         * Play Button functionality
+         */
         buttonPPR.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent actionEvent) {
                 
                 Button buttonPlay = (Button) actionEvent.getSource();
                 bindCurrentTimeLabel();
-                // If it is the end of the video then reset the slider to 0 and restart the video.
+                //Restart at end of video
                 if (atEndOfVideo) {
                     sliderTime.setValue(0);
                     atEndOfVideo = false;
                     isPlaying = false;
                 }
-                // If the video is playing and the button is clicked pause the video and change the image on the button to play.
+                //Pause and change image to Play.
                 if (isPlaying) {
                     buttonPlay.setGraphic(ivPlay);
-                    mpVideo.pause();
-                    // The video is now paused so change it to false.
+                    mediaPlayer.pause();
                     isPlaying = false;
                 } else {
-                    // The video was paused so when the button is clicked change the image to stop and play video.
+                    //Play and change image to pause
                     buttonPlay.setGraphic(ivPause);
-                    mpVideo.play();
-                    // The video is now playing so isPlaying is true.
+                    mediaPlayer.play();
                     isPlaying = true;
                 }
             }
         });
         
+        /**
+         * Download button functionality
+         */
         downloadBtn.setOnAction(new EventHandler<ActionEvent>() {
         	@Override
         	public void handle(ActionEvent actionEvent) {
-//        		if(!client.isConnected()) {
-        			System.out.println("Client is NOT connected");
-	    			try {
-	    				socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
-	    				client = new Client(socketfact);
-	    			}catch(Exception e) {
-	    				e.printStackTrace();
-	    				System.out.println("Error creating client.");
-	    			}        		
-//        		} else {
-//        			System.out.println("Client is connected");
-//        		}
+        		//pause player while waiting.
+        		mediaPlayer.pause();
         		
-        		Button downloadButton = (Button) actionEvent.getSource();
-        		
-        		System.out.println("Download button pressed");
-        		System.out.println("Selected item is " + mediaList.getSelectionModel().getSelectedItem());
+        		//get clicked on list Item
         		String fileName = mediaList.getSelectionModel().getSelectedItem();
         		
+        		//DP: make new connetion - could probably maintain same connection
+        		//with server code change
+        		try {
+            		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
+        			client = new Client(socketfact);
+        		}catch(Exception e) {
+        			e.printStackTrace();
+        			System.out.println("Error creating client.");
+        		}
+        		
+        		//ask server for file
         		client.sendMediaRequest(fileName);
-        		client.receiveMediaFromServer(mpVideo);
-        	}
-        });
+        		System.out.println(fileName);
+        		
+        		//receive media from Server
+        		client.receiveMediaFromServer(fileName);
+        		//DP:Not having a good time with this!?
+        		//wont load because it's not all the way downloaded, need to wait
+        		new Thread(new Runnable() {
+        			@Override
+        			public void run() {
+        				File fullFile;
+        				do {
+        					fullFile = new File(CACHE + fileName);
+        				}while(!fullFile.exists());
+        		//Update mediaPlayer with new media item
+        		mediaFile = new Media(new File(CACHE + fileName).toURI().toString());
+        	    mediaPlayer = new MediaPlayer(mediaFile);
+        	    mediaPlayer.setAutoPlay(true);
+        	    mediaView.setMediaPlayer(mediaPlayer);
+        	    mediaPlayer.play(); 
+        	    
+        	    //DP: reset media sliders and timers below
+        	    
+        		}}).start();
+        }});
 
         
         // Connect volume of video to slider
-        mpVideo.volumeProperty().bindBidirectional(sliderVolume.valueProperty());
+        mediaPlayer.volumeProperty().bindBidirectional(sliderVolume.valueProperty());
         
         // Volume Slider Functionality
         sliderVolume.valueProperty().addListener(new InvalidationListener() {
             @Override
             public void invalidated(Observable observable) {
                 // Set the volume of the video to the slider's value.
-                mpVideo.setVolume(sliderVolume.getValue());
+                mediaPlayer.setVolume(sliderVolume.getValue());
                 // If the video's volume isn't 0 then it is not muted so set the
                 // label to the unmuted speaker and set isMuted to false.
-                if (mpVideo.getVolume() != 0.0) {
+                if (mediaPlayer.getVolume() != 0.0) {
                     labelVolume.setGraphic(ivVolume);
                     isMuted = false;
                 } else {
@@ -314,7 +309,7 @@ public class Controller implements Initializable {
         });
 
         // Play the video when the application starts.
-        mpVideo.play();
+        mediaPlayer.play();
 
         // When the speed label is clicked on adjust the speed of the video
         // and change the text appropriately.
@@ -323,10 +318,10 @@ public class Controller implements Initializable {
             public void handle(MouseEvent mouseEvent) {
                 if (labelSpeed.getText().equals("1X")) {
                     labelSpeed.setText("2X");
-                    mpVideo.setRate(2.0);
+                    mediaPlayer.setRate(2.0);
                 } else {
                     labelSpeed.setText("1X");
-                    mpVideo.setRate(1.0);
+                    mediaPlayer.setRate(1.0);
                 }
             }
         });
@@ -364,7 +359,7 @@ public class Controller implements Initializable {
             public void handle(MouseEvent mouseEvent) {
                 if (hboxVolume.lookup("#sliderVolume") == null) {
                     hboxVolume.getChildren().add(sliderVolume);
-                    sliderVolume.setValue(mpVideo.getVolume());
+                    sliderVolume.setValue(mediaPlayer.getVolume());
                 }
             }
         });
@@ -385,7 +380,7 @@ public class Controller implements Initializable {
             public void changed(ObservableValue<? extends Scene> observableValue, Scene scene, Scene newScene) {
                 if (scene == null && newScene != null) {
                     // Match the height of the video to the height of the scene minus the hbox controls height.
-                    mvVideo.fitHeightProperty().bind(newScene.heightProperty().subtract(hBoxControls.heightProperty().add(20)));
+                    mediaView.fitHeightProperty().bind(newScene.heightProperty().subtract(hBoxControls.heightProperty().add(20)));
                 }
             }
         });
@@ -421,10 +416,10 @@ public class Controller implements Initializable {
          * This checks how long the the video attached to the media player is.
          * If the media attached to the media player changes then the max of the slider will change as well.
          */
-        mpVideo.totalDurationProperty().addListener(new ChangeListener<Duration>() {
+        mediaPlayer.totalDurationProperty().addListener(new ChangeListener<Duration>() {
             @Override
             public void changed(ObservableValue<? extends Duration> observableValue, Duration oldDuration, Duration newDuration) {
-                // Note that duraiton is originally in milliseconds.
+                // Note that duration is originally in milliseconds.
                 // newDuration is the time of the current video, oldDuration is the duration of the previous video.
                 sliderTime.setMax(newDuration.toSeconds());
                 labelTotalTime.setText(getTime(newDuration));
@@ -441,7 +436,7 @@ public class Controller implements Initializable {
                 // Once the slider has stopped changing (the user lets go of the slider ball) then set the video to this time.
                 if (!isChanging) {
                     // seek() seeks the player to a new time. Note that this has no effect while the player's  status is stopped or the duration is indefinite.
-                    mpVideo.seek(Duration.seconds(sliderTime.getValue()));
+                    mediaPlayer.seek(Duration.seconds(sliderTime.getValue()));
                 }
             }
         });
@@ -455,15 +450,15 @@ public class Controller implements Initializable {
             public void changed(ObservableValue<? extends Number> observableValue, Number oldValue, Number newValue) {
                 bindCurrentTimeLabel();
                 // Get the current time of the video in seconds.
-                double currentTime = mpVideo.getCurrentTime().toSeconds();
+                double currentTime = mediaPlayer.getCurrentTime().toSeconds();
                 if (Math.abs(currentTime - newValue.doubleValue()) > 0.5) {
-                    mpVideo.seek(Duration.seconds(newValue.doubleValue()));
+                    mediaPlayer.seek(Duration.seconds(newValue.doubleValue()));
                 }
                 labelsMatchEndVideo(labelCurrentTime.getText(), labelTotalTime.getText());
             }
         });
 
-        mpVideo.currentTimeProperty().addListener(new ChangeListener<Duration>() {
+        mediaPlayer.currentTimeProperty().addListener(new ChangeListener<Duration>() {
             @Override
             public void changed(ObservableValue<? extends Duration> observableValue, Duration oldTime, Duration newTime) {
                 bindCurrentTimeLabel();
@@ -475,7 +470,7 @@ public class Controller implements Initializable {
         });
 
         // What happens at the end of the video.
-        mpVideo.setOnEndOfMedia(new Runnable() {
+        mediaPlayer.setOnEndOfMedia(new Runnable() {
             @Override
             public void run() {
                 buttonPPR.setGraphic(ivRestart);
@@ -484,7 +479,7 @@ public class Controller implements Initializable {
                 // For example the video could end with 00:39 / 00:40.
                 if (!labelCurrentTime.textProperty().equals(labelTotalTime.textProperty())) {
                     labelCurrentTime.textProperty().unbind();
-                    labelCurrentTime.setText(getTime(mpVideo.getTotalDuration()) + " / ");
+                    labelCurrentTime.setText(getTime(mediaPlayer.getTotalDuration()) + " / ");
                 }
             }
         });
@@ -542,8 +537,8 @@ public class Controller implements Initializable {
                 // Return the hours, minutes, and seconds of the video.
                 // %d is an integer
                 // Time is given in milliseconds. (For example 750.0 ms).
-                return getTime(mpVideo.getCurrentTime()) + " / ";
+                return getTime(mediaPlayer.getCurrentTime()) + " / ";
             }
-        }, mpVideo.currentTimeProperty()));
+        }, mediaPlayer.currentTimeProperty()));
     }
 }
