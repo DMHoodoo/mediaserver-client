@@ -9,6 +9,7 @@ package player;
 //import java.io.OutputStreamWriter;
 import java.io.*;
 import java.net.Socket;
+import java.util.concurrent.CountDownLatch;
 
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -210,7 +211,7 @@ public class Client {
 					new OutputStreamWriter(
 							socket.getOutputStream())));			
 			
-			printWriter.print(RPC_REQUEST_FILE + " " + filename);
+			printWriter.print(RPC_REQUEST_FILE + " \"" + filename + "\"");
 			
 			System.out.println("Sent RPC request");
 			
@@ -232,7 +233,7 @@ public class Client {
 	 * 
 	 * @param fileName of sought after media
 	 */
-	public void receiveMediaFromServer(String fileName) {
+	public void receiveMediaFromServer(String fileName, CountDownLatch threadSignal) {
 		new Thread(new Runnable() {
 
 			@Override
@@ -265,6 +266,9 @@ public class Client {
 							remaining -= read;
 							fos.write(buffer, 0, read);
 						}
+						
+						threadSignal.countDown();
+						
 					} catch (IOException e) {
 						System.out.println("Error making input file streams.");
 						e.printStackTrace();

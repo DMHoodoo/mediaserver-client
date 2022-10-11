@@ -38,6 +38,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.ResourceBundle;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.net.Socket;
 
 import javax.net.ssl.SSLSocketFactory;
@@ -261,27 +262,40 @@ public class Controller implements Initializable {
         		client.sendMediaRequest(fileName);
         		System.out.println(fileName);
         		
+        		// Semaphore that counts down when media server thread finishes
+        		CountDownLatch threadSignal = new CountDownLatch(1);        		
+
         		//receive media from Server
-        		client.receiveMediaFromServer(fileName);
-        		//DP:Not having a good time with this!?
-        		//wont load because it's not all the way downloaded, need to wait
-        		new Thread(new Runnable() {
-        			@Override
-        			public void run() {
-        				File fullFile;
-        				do {
-        					fullFile = new File(CACHE + fileName);
-        				}while(!fullFile.exists());
+        		client.receiveMediaFromServer(fileName, threadSignal);
+        		
+        		// Wait until the thread from receiveMediaFromServer counts down
+        		try {
+					threadSignal.await();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+        		
+				File fullFile;
+				do {
+					fullFile = new File(CACHE + fileName);
+				}while(!fullFile.exists());
+				
         		//Update mediaPlayer with new media item
         		mediaFile = new Media(new File(CACHE + fileName).toURI().toString());
         	    mediaPlayer = new MediaPlayer(mediaFile);
         	    mediaPlayer.setAutoPlay(true);
         	    mediaView.setMediaPlayer(mediaPlayer);
-        	    mediaPlayer.play(); 
         	    
-        	    //DP: reset media sliders and timers below
-        	    
-        		}}).start();
+        	    // We need to wait for the media player to be ready according to the doc
+        	    // We use the "resetplayer" helper function to rebind time labels
+        	    // HOK: The change listeners weren't working for some reason
+        	    mediaPlayer.setOnReady(new Runnable() {
+        	    	@Override
+        	    	public void run() { 	    		                	    
+                	    resetPlayer(mediaFile);                	    
+                	    mediaPlayer.play();  
+        	    	}
+        	    });
         }});
 
         
@@ -483,17 +497,32 @@ public class Controller implements Initializable {
                 }
             }
         });
-
+        
+        
 
     }
-
+    
+    /**
+     * Helper function to reset the player
+     * Primarily utilized when loading a new piece of media in
+     * 
+     * @param media The media to reset according to
+     */
+    public void resetPlayer(Media media) {
+	    bindCurrentTimeLabel();
+	    sliderTime.setMax(media.getDuration().toSeconds());
+	    sliderTime.setValue(0);
+	    labelTotalTime.setText(getTime(media.getDuration()));     	
+    }
+    
     /**
      * This function takes the time of the video and calculates the seconds, minutes, and hours.
      * @param time - The time of the video.
      * @return Corrected seconds, minutes, and hours.
      */
     public String getTime(Duration time) {
-
+    	
+    	
         int hours = (int) time.toHours();
         int minutes = (int) time.toMinutes();
         int seconds = (int) time.toSeconds();
@@ -502,7 +531,7 @@ public class Controller implements Initializable {
         if (seconds > 59) seconds = seconds % 60;
         if (minutes > 59) minutes = minutes % 60;
         if (hours > 59) hours = hours % 60;
-
+        
         // Don't show the hours unless the video has been playing for an hour or longer.
         if (hours > 0) return String.format("%d:%02d:%02d",
                 hours,
