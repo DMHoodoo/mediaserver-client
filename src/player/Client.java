@@ -9,7 +9,11 @@ package player;
 //import java.io.OutputStreamWriter;
 import java.io.*;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -26,6 +30,7 @@ public class Client {
 	static final int RPC_REQUEST_SUCCESS = 0;	
 	static final String RPC_REQUEST_LISTING = "requestlisting";
 	static final String RPC_REQUEST_FILE = "requestfile";
+	static final String RPC_REQUEST_MD5 = "requestmd5";
 	
 	//socket parts
 	private SSLSocketFactory socketfact;
@@ -33,20 +38,17 @@ public class Client {
 	
 	//IO readers/writers
 	private BufferedReader bufferedReader;
-	private BufferedWriter bufferedWriter;
-	
+	private BufferedWriter bufferedWriter;	
 	private PrintWriter printWriter;
 	
 	private String buffer;
-//    private BufferedReader bufferedReader;
-    
-	DataInputStream dis;	
+	private final int PORT_A = 4433;
+	private final int PORT_B = 4433;	
 
 	/**
-	 * Constructor for Client socket
+	 * Constructor for Client socket creation
 	 * 
-	 * DP: Needs Handshake and more for connection purposes
-	 * @param socket
+	 * @param socketfact
 	 */
 	public Client(SSLSocketFactory socketfact) {
 //		System.setProperty("javax.net.ssl.trustStore","clientTrustStore");
@@ -55,17 +57,22 @@ public class Client {
 		
 //		System.setProperty("javax.net.ssl.trustStore", "client.jks");
 //		System.setProperty("javax.net.ssl.trustStorePassword", "client");
+		
+		/**
+		 * Initial connection attempt for sockets and data movers
+		 */
 		try {
 			//create sockets and perform handshake
 			this.socketfact = socketfact;
-			this.socket = (SSLSocket) socketfact.createSocket("localhost", 4433);
+			this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
 			socket.startHandshake();
-			
 			System.out.println("Socket handshake started");
 			
 			//create data movers
-			this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-			this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+			this.bufferedReader = new BufferedReader(new InputStreamReader
+					(socket.getInputStream()));
+			this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
+					(socket.getOutputStream()));			
 		} catch (IOException e) {
 			e.printStackTrace();
 			System.out.println("Error creating client.");
@@ -73,130 +80,141 @@ public class Client {
 		}
 	}
 	
-	public Boolean isConnected() {
-		if(socket == null) {
-			return false;
-		}
-		else
+	/**
+	 * Checks if client is connected.
+	 * If false new connection is attempted before returning false 
+	 * after connection failure.
+	 * 
+	 * @return
+	 */
+	public Boolean verifyConnection() {
+		Object obj = new Object();
+		//if connected, return
+		if(socket != null) {
 			return true;
+		}
+		//if not connected, attempt both ports x5
+		try {
+			synchronized(obj) {
+				//try port A
+				for(int i = 0; i < 5; ++i) {
+					this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
+					socket.startHandshake();
+					
+					//create data movers
+					this.bufferedReader = new BufferedReader(new InputStreamReader
+							(socket.getInputStream()));
+					this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
+							(socket.getOutputStream()));
+					if(socket != null) {
+						return true;
+					}
+					obj.wait(1000);
+				}
+				//try port B
+				for(int i = 0; i < 5; ++i) {
+					this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
+					socket.startHandshake();
+					
+					//create data movers
+					this.bufferedReader = new BufferedReader(new InputStreamReader
+							(socket.getInputStream()));
+					this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
+							(socket.getOutputStream()));
+					if(socket != null) {
+						return true;
+					}
+					obj.wait(1000);
+				}
+			}
+		} catch(InterruptedException e) {
+			System.out.println("Error creating client. Interrupted in verifyConnection().");
+			e.printStackTrace();
+			return false;
+		} catch (UnknownHostException e) {
+			System.out.println("Error creating client. Unknown host in verifyConnection().");
+			e.printStackTrace();
+			return false;
+		} catch (IOException e) {
+			System.out.println("Error creating client. IO Exception in verifyConnection().");
+			e.printStackTrace();
+			return false;
+		}	
+		return false;
 	}
 	
 	/**
-	 * Accept list of available filenames from Server\
+	 * Accept list of available filenames from Server
+	 * Refreshes every 30 seconds
 	 * 
-	 * 
-	 * DP:method needed in controller to link a scroll list to this received list
-	 * DP: assume method needs to be made ArrayList to return list.
-	 * 
+	 * @param mediaList from GUI view.
 	 */
 	public void receiveListFromServer(ListView<String> finalMediaList) {
-		System.out.println("Attempting to receive list from server");
 		
-		//needs to run on separate thread so server is not blocked 
-		//constantly waiting for messages
-		//DP: This is for single line text only. Needs to import ArrayList
-			new Thread(new Runnable() {
-
-				@Override
-				public void run() {
-					ObservableList<String> tempMediaList = FXCollections.observableArrayList();
-					System.out.println("Trying to get into initial while loop...");
-					if(socket != null) {
-						System.out.println("Getting into first try");
-						try {
-							printWriter = new PrintWriter(new BufferedWriter(
-									new OutputStreamWriter(
-											socket.getOutputStream())));
-							
-							printWriter.print(RPC_REQUEST_LISTING);
-							
-							System.out.println("Sent RPC request");
-							
-							if(printWriter.checkError())
-								System.err.println("Client: Error writing to socket");
-							
-							System.out.println("No errors found?");
-							
-//							bufferedReader = new BufferedReader(new InputStreamReader(
-//									socket.getInputStream()));
-							
-							System.out.println("Reading server request");
-
-//							System.out.println(buffer);
-							System.out.println("We're here atm");
-							buffer = "-1";
-							System.out.println("Buffer is " + buffer);
-//							buffer = bufferedReader.readLine();
-							System.out.println("Uhm...!??");
-							
-							dis = new DataInputStream(socket.getInputStream());
-							
-							String testString = Integer.toString(RPC_REQUEST_SUCCESS);
-							while(!buffer.equals(testString)) {
-								try {
-									buffer = bufferedReader.readLine();
-									
-								}catch(IOException e) {
-									System.out.println(e);
-								}
-								buffer = buffer.replace("\0", "");
-//								System.out.println("Right HERE");
-//								buffer = bufferedReader.readLine();
-//								System.out.println("Receiving something");
-								System.out.println("Right HEEERE");
-								System.out.println("Buffer is " + buffer);
-								tempMediaList.add(buffer);
-								System.out.println(tempMediaList);
-								
-								
-								for(int i = 0; i < buffer.length(); i++) {
-									char c = buffer.charAt(i);
-									System.out.println(c + " = " + ((int)c));
-								}
-								
-								for(int j = 0; j < testString.length(); j++) {
-									char c = testString.charAt(j);
-									System.out.println(c + " = " + ((int)c));
-								}
-								
-								System.out.println("Does " + buffer + " = " + RPC_REQUEST_SUCCESS + " ? " + (buffer.equals(testString)));
-//								System.out.println(buffer);								
-							}
-							
-							printWriter.print(RPC_REQUEST_SUCCESS);
-
-							
-							// If our server said we had a successful request...
-//							if(Integer.parseInt(buffer) == RPC_REQUEST_SUCCESS) {
-//								buffer = "-1";
-//								
-//								System.out.println("We're here atm");
-//								while(Integer.parseInt(buffer) != RPC_REQUEST_SUCCESS) {
-//									System.out.println("Receiving something");
-//									tempMediaList.add(buffer);
-//									System.out.println(buffer);
-//								}
-//								System
-							System.out.println("We're here now btw");
-								System.out.println(tempMediaList);
-								finalMediaList.setItems(tempMediaList);
-//							}else {
-//								System.out.println("Invalid server response: " + buffer);
-//							}
-							
-//							String messageFromClient = bufferedReader.readLine();
-							//Controller.addLabel(messageFromClient, vbox_messages);
-						}catch(IOException e) {
-							e.printStackTrace();
-							System.out.println("Error receiving message from the client");
-							closeEverything(socket, bufferedReader, bufferedWriter);
-//							break;
-						}
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				ObservableList<String> tempMediaList = FXCollections.observableArrayList();
+				if(verifyConnection()) { 
+					
+					//DP: keeps from blocking
+					try {
+			    		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
+						Client client = new Client(socketfact);
+					}catch(Exception e) {
+						e.printStackTrace();
+						System.out.println("Error creating client.");
 					}
 					
+					try {
+						printWriter = new PrintWriter(new BufferedWriter(
+								new OutputStreamWriter(socket.getOutputStream())));
+						
+						//send RPC
+						System.out.println("Sending list request.");
+						printWriter.print(RPC_REQUEST_LISTING);
+						System.out.println("Sent.");
+
+						if(printWriter.checkError()) {
+							System.err.println("Client: Error writing to socket");
+						}
+						
+						buffer = "-1";
+
+						String testString = Integer.toString(RPC_REQUEST_SUCCESS);
+						while(!buffer.equals(testString)) {
+							try {
+								buffer = bufferedReader.readLine();
+								
+							}catch(IOException e) {
+								System.out.println(e);
+							}
+							buffer = buffer.replace("\0", "");
+							
+							tempMediaList.add(buffer);						
+							
+						}
+						
+						printWriter.print(RPC_REQUEST_SUCCESS);
+
+						finalMediaList.setItems(tempMediaList);
+						System.out.println("List retreived.");
+
+					}catch(IOException e) {
+						e.printStackTrace();
+						System.out.println("Error receiving message from the client");
+						closeEverything(socket, bufferedReader, bufferedWriter);
+					}
 				}
-				
-				}).start();
+				else {
+						ObservableList<String> error = FXCollections.observableArrayList();
+						error.add("Server Unavaiable.");
+						finalMediaList.setItems(error);
+					}
+			}
+			
+			}).start();
+
 	}
 	
 	/**

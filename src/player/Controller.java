@@ -5,10 +5,7 @@ import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
-import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -16,7 +13,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -32,18 +28,15 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.File;
-import java.io.IOException;
-import java.net.ServerSocket;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.ResourceBundle;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.net.Socket;
-
-import javax.net.ssl.SSLSocketFactory;
-
-import player.Client;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.Timer;
 
 /**
  * Class to manipulate and utilize the FXML GUI.
@@ -116,6 +109,7 @@ public class Controller implements Initializable {
     private boolean isMuted = true;
     private final String RES = "src/resources/";
     private final String CACHE = "src/cache/";
+    private final String START_FILE = "src/resources/LSDunes.mp4";
     
     //SSL Connection integration
     private Client client;
@@ -129,83 +123,29 @@ public class Controller implements Initializable {
 		/**
 		 * Media Player creation. Media wrapped in player, player wrapped in view.
 		 */
-        mediaFile = new Media(new File(RES + "LSDunes.mp4").toURI().toString());
+        mediaFile = new Media(new File(START_FILE).toURI().toString());
         mediaPlayer = new MediaPlayer(mediaFile);
         mediaPlayer.setAutoPlay(true);
         mediaView.setMediaPlayer(mediaPlayer);
+        mediaPlayer.play();
 
-        /*
- 		 * BEGIN: Applying images to buttons
-         * Play button
-         */
-        Image imagePlay = new Image(new File(RES + "play-btn.png").toURI().toString());
-        ivPlay = new ImageView(imagePlay);
-        ivPlay.setFitWidth(35);
-        ivPlay.setFitHeight(35);
-
-        // Button stop image.
-        Image imageStop = new Image(new File(RES + "stop-btn.png").toURI().toString());
-        ivPause = new ImageView(imageStop);
-        ivPause.setFitHeight(35);
-        ivPause.setFitWidth(35);
-
-        // Restart button image.
-        Image imageRestart = new Image(new File(RES + "restart-btn.png").toURI().toString());
-        ivRestart = new ImageView(imageRestart);
-        ivRestart.setFitWidth(35);
-        ivRestart.setFitHeight(35);
-
-        // Volume (speaker) image.
-        Image imageVol = new Image(new File(RES + "volume.png").toURI().toString());
-        ivVolume = new ImageView(imageVol);
-        ivVolume.setFitWidth(35);
-        ivVolume.setFitHeight(35);
-
-        // Full screen image.
-        Image imageFull = new Image(new File(RES + "fullscreen.png").toURI().toString());
-        ivFullScreen = new ImageView(imageFull);
-        ivFullScreen.setFitHeight(35);
-        ivFullScreen.setFitWidth(35);
-
-        // Muted speaker image.
-        Image imageMute = new Image(new File(RES + "mute.png").toURI().toString());
-        ivMute = new ImageView(imageMute);
-        ivMute.setFitWidth(35);
-        ivMute.setFitHeight(35);
-
-        // Exit full screen image.
-        Image imageExit = new Image(new File(RES + "exitscreen.png").toURI().toString());
-        ivExit = new ImageView(imageExit);
-        ivExit.setFitHeight(35);
-        ivExit.setFitWidth(35);
-        /*
-         * END apply images
-         */
- 
-        /*
-         * Set default images
-         */
-        // When started the button should have the pause sign because it is playing.
-        buttonPPR.setGraphic(ivPause);
-        // The video starts out muted so originally have the volume label be the muted speaker.
-        labelVolume.setGraphic(ivMute);
-        // The video is at normal speed at the beginning.
-        labelSpeed.setText("1X");
-        // The video starts out not in full screen so make the label image the get to full screen one.
-        labelFullScreen.setGraphic(ivFullScreen);
-    	
-    	/**
-    	 * make server socket
-    	 */
-    	try {
+        //Setup initial button Images and defaults
+        setImages();
+        
+        try {
     		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
 			client = new Client(socketfact);
 		}catch(Exception e) {
 			e.printStackTrace();
 			System.out.println("Error creating client.");
-		}		
+		}    	
+
     	//request list of available media
-		client.receiveListFromServer(mediaList);
+        //DP: This will run the call evey 20 sec
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+        executor.scheduleAtFixedRate(() -> client.receiveListFromServer(mediaList), 0, 20, TimeUnit.SECONDS);
+        
+    	
         
         /**
          * Play Button functionality
@@ -248,8 +188,7 @@ public class Controller implements Initializable {
         		//get clicked on list Item
         		String fileName = mediaList.getSelectionModel().getSelectedItem();
         		
-        		//DP: make new connetion - could probably maintain same connection
-        		//with server code change
+        		//DP: REMOVE ONCE VALIDATE METHOD IS SET
         		try {
             		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
         			client = new Client(socketfact);
@@ -258,7 +197,7 @@ public class Controller implements Initializable {
         			System.out.println("Error creating client.");
         		}
         		
-        		//ask server for file
+        		//ask server for file //implement if statement for boolean return
         		client.sendMediaRequest(fileName);
         		System.out.println(fileName);
         		
@@ -322,8 +261,7 @@ public class Controller implements Initializable {
             }
         });
 
-        // Play the video when the application starts.
-        mediaPlayer.play();
+        
 
         // When the speed label is clicked on adjust the speed of the video
         // and change the text appropriately.
@@ -513,6 +451,72 @@ public class Controller implements Initializable {
 	    sliderTime.setMax(media.getDuration().toSeconds());
 	    sliderTime.setValue(0);
 	    labelTotalTime.setText(getTime(media.getDuration()));     	
+    }
+    
+    /**
+     * Setup of button configuration on mediaPlayer. Sets up button
+     * Images and their initial presentation upon player launch.
+     */
+    public void setImages() {
+    	/*
+ 		 * BEGIN: Applying images to buttons
+         * Play button
+         */
+        Image imagePlay = new Image(new File(RES + "play-btn.png").toURI().toString());
+        ivPlay = new ImageView(imagePlay);
+        ivPlay.setFitWidth(35);
+        ivPlay.setFitHeight(35);
+
+        // Button stop image.
+        Image imageStop = new Image(new File(RES + "stop-btn.png").toURI().toString());
+        ivPause = new ImageView(imageStop);
+        ivPause.setFitHeight(35);
+        ivPause.setFitWidth(35);
+
+        // Restart button image.
+        Image imageRestart = new Image(new File(RES + "restart-btn.png").toURI().toString());
+        ivRestart = new ImageView(imageRestart);
+        ivRestart.setFitWidth(35);
+        ivRestart.setFitHeight(35);
+
+        // Volume (speaker) image.
+        Image imageVol = new Image(new File(RES + "volume.png").toURI().toString());
+        ivVolume = new ImageView(imageVol);
+        ivVolume.setFitWidth(35);
+        ivVolume.setFitHeight(35);
+
+        // Full screen image.
+        Image imageFull = new Image(new File(RES + "fullscreen.png").toURI().toString());
+        ivFullScreen = new ImageView(imageFull);
+        ivFullScreen.setFitHeight(35);
+        ivFullScreen.setFitWidth(35);
+
+        // Muted speaker image.
+        Image imageMute = new Image(new File(RES + "mute.png").toURI().toString());
+        ivMute = new ImageView(imageMute);
+        ivMute.setFitWidth(35);
+        ivMute.setFitHeight(35);
+
+        // Exit full screen image.
+        Image imageExit = new Image(new File(RES + "exitscreen.png").toURI().toString());
+        ivExit = new ImageView(imageExit);
+        ivExit.setFitHeight(35);
+        ivExit.setFitWidth(35);
+        /*
+         * END apply images
+         */
+        
+        /*
+         * Set default images
+         */
+        // When started the button should have the pause sign because it is playing.
+        buttonPPR.setGraphic(ivPause);
+        // The video starts out muted so originally have the volume label be the muted speaker.
+        labelVolume.setGraphic(ivMute);
+        // The video is at normal speed at the beginning.
+        labelSpeed.setText("1X");
+        // The video starts out not in full screen so make the label image the get to full screen one.
+        labelFullScreen.setGraphic(ivFullScreen);
     }
     
     /**
