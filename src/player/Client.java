@@ -9,11 +9,16 @@ package player;
 //import java.io.OutputStreamWriter;
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -31,6 +36,7 @@ public class Client {
 	static final String RPC_REQUEST_LISTING = "requestlisting";
 	static final String RPC_REQUEST_FILE = "requestfile";
 	static final String RPC_REQUEST_MD5 = "requestmd5";
+	static final String RPC_REQUEST_ISALIVE = "ping";
 	
 	//socket parts
 	private SSLSocketFactory socketfact;
@@ -51,13 +57,7 @@ public class Client {
 	 * @param socketfact
 	 */
 	public Client(SSLSocketFactory socketfact) {
-//		System.setProperty("javax.net.ssl.trustStore","clientTrustStore");
-//
-//		System.setProperty("javax.net.ssl.trustStorePassword","changeit");
-		
-//		System.setProperty("javax.net.ssl.trustStore", "client.jks");
-//		System.setProperty("javax.net.ssl.trustStorePassword", "client");
-		
+
 		/**
 		 * Initial connection attempt for sockets and data movers
 		 */
@@ -65,14 +65,19 @@ public class Client {
 			//create sockets and perform handshake
 			this.socketfact = socketfact;
 			this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
-			socket.startHandshake();
-			System.out.println("Socket handshake started");
+			try {
+				socket.startHandshake();
+				System.out.println("Socket handshake started");
+				
+				//create data movers
+				this.bufferedReader = new BufferedReader(new InputStreamReader
+						(socket.getInputStream()));
+				this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
+						(socket.getOutputStream()));				
+			} catch(SocketException e) {
+				System.out.println("Server is unavailable.");
+			}
 			
-			//create data movers
-			this.bufferedReader = new BufferedReader(new InputStreamReader
-					(socket.getInputStream()));
-			this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
-					(socket.getOutputStream()));			
 		} catch (IOException e) {
 			e.printStackTrace();
 			System.out.println("Error creating client.");
@@ -88,43 +93,125 @@ public class Client {
 	 * @return
 	 */
 	public Boolean verifyConnection() {
-		Object obj = new Object();
-		//if connected, return
-		if(socket != null) {
-			return true;
+		try {
+			printWriter = new PrintWriter(new BufferedWriter(
+					new OutputStreamWriter(socket.getOutputStream())));
+			
+			this.bufferedReader = new BufferedReader(new InputStreamReader
+					(socket.getInputStream()));			
+			
+			// Send Heartbeat/ISALIVE request to see if connection is still active
+			printWriter.print(RPC_REQUEST_ISALIVE + "\0");
+			
+			printWriter.flush();
+			
+			// Look for response, if "pong", then it's alive
+			// if null then it's dead.
+			buffer = bufferedReader.readLine();											
+			
+			if(buffer != null)
+				return true;
+		} catch (IOException e1) {
+			e1.printStackTrace();
 		}
+		
+		// HOK : Failed attempt at setting a timeout for a thread.
+		// Kept it here as it's an interesting example for setting timeouts on threads
+		// TODELETE!!!
+//		boolean test = false;
+//		ExecutorService executorService = Executors.newFixedThreadPool(1);
+//		Future<?> future = executorService.submit(new Thread(new Runnable() {
+//				@Override
+//				public void run() {
+//					try {
+//						printWriter = new PrintWriter(new BufferedWriter(
+//								new OutputStreamWriter(socket.getOutputStream())));
+//						
+//						//send RPC
+//						System.out.println("Sending is alive request");
+//						printWriter.print(RPC_REQUEST_ISALIVE);
+//						
+//						
+//						buffer = bufferedReader.readLine();								
+//						System.out.println("Received " + buffer);
+//						
+//						if(buffer.equals("pong")) {
+//							System.out.println("Returned the correct value");
+//						}
+//					}catch(IOException e) {
+//						System.out.println(e);
+//					}
+//				}
+//			}));
+//		
+//		try {
+//			future.get(20, TimeUnit.SECONDS);
+//		} catch(TimeoutException e) {
+//			future.cancel(true);
+//			return false;
+//		} catch (InterruptedException e) {
+//			e.printStackTrace();
+//		} catch (ExecutionException e) {
+//			e.printStackTrace();
+//		}
+		// TODELETE!!!!
+		
+		Object obj = new Object();
+
 		//if not connected, attempt both ports x5
 		try {
 			synchronized(obj) {
+				System.out.println("Trying to connect to port A");
+
 				//try port A
-				for(int i = 0; i < 5; ++i) {
-					this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
-					socket.startHandshake();
+				for(int i = 0; i < 5; i++) {
+					System.out.println(i + "\'th attempt...");
 					
-					//create data movers
-					this.bufferedReader = new BufferedReader(new InputStreamReader
-							(socket.getInputStream()));
-					this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
-							(socket.getOutputStream()));
-					if(socket != null) {
+					this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
+					
+					try {
+						socket.startHandshake();
+						//create data movers
+						this.bufferedReader = new BufferedReader(new InputStreamReader
+								(socket.getInputStream()));
+						this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
+								(socket.getOutputStream()));						
+						
 						return true;
+					} catch(SocketException e) {
+						System.out.println("Connection failed, server unavailable." + e);
+						
+					} finally {
+						obj.wait(1000);
 					}
-					obj.wait(1000);
+
+//					if(socket != null) {
+//						return true;
+//					}
+
 				}
 				//try port B
 				for(int i = 0; i < 5; ++i) {
 					this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
-					socket.startHandshake();
-					
-					//create data movers
-					this.bufferedReader = new BufferedReader(new InputStreamReader
-							(socket.getInputStream()));
-					this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
-							(socket.getOutputStream()));
-					if(socket != null) {
+					try{
+						socket.startHandshake();
+						
+						//create data movers
+						this.bufferedReader = new BufferedReader(new InputStreamReader
+								(socket.getInputStream()));
+						this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
+								(socket.getOutputStream()));
+						
 						return true;
+					}catch(SocketException e) {
+						System.out.println("Server is unavailable " + e);						
+					} finally {
+						obj.wait(1000);						
 					}
-					obj.wait(1000);
+//					if(socket != null) {
+//						return true;
+//					}
+
 				}
 			}
 		} catch(InterruptedException e) {
@@ -158,14 +245,14 @@ public class Client {
 				if(verifyConnection()) { 
 					
 					//DP: keeps from blocking
-					try {
-			    		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
-						Client client = new Client(socketfact);
-					}catch(Exception e) {
-						e.printStackTrace();
-						System.out.println("Error creating client.");
-					}
-					
+//					try {
+//			    		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
+//						Client client = new Client(socketfact);
+//					}catch(Exception e) {
+//						e.printStackTrace();
+//						System.out.println("Error creating client.");
+//					}
+//					
 					try {
 						printWriter = new PrintWriter(new BufferedWriter(
 								new OutputStreamWriter(socket.getOutputStream())));
@@ -181,22 +268,25 @@ public class Client {
 						
 						buffer = "-1";
 
-						String testString = Integer.toString(RPC_REQUEST_SUCCESS);
-						while(!buffer.equals(testString)) {
+						String RPC_SUCCESS_STRING = Integer.toString(RPC_REQUEST_SUCCESS);
+						while(!buffer.equals(RPC_SUCCESS_STRING)) {
+							
 							try {
-								buffer = bufferedReader.readLine();
-								
+								buffer = bufferedReader.readLine();								
 							}catch(IOException e) {
 								System.out.println(e);
 							}
+							
 							buffer = buffer.replace("\0", "");
 							
-							tempMediaList.add(buffer);						
+							if(!buffer.equals(RPC_SUCCESS_STRING))
+								tempMediaList.add(buffer);						
 							
 						}
 						
-						printWriter.print(RPC_REQUEST_SUCCESS);
-
+//						printWriter.print(RPC_REQUEST_SUCCESS);
+						printWriter.flush();
+						
 						finalMediaList.setItems(tempMediaList);
 						System.out.println("List retreived.");
 
@@ -207,9 +297,10 @@ public class Client {
 					}
 				}
 				else {
+						System.out.println("Server unavailable");
 						ObservableList<String> error = FXCollections.observableArrayList();
 						error.add("Server Unavaiable.");
-						finalMediaList.setItems(error);
+//						finalMediaList.setItems(error);
 					}
 			}
 			
@@ -239,6 +330,7 @@ public class Client {
 			if(printWriter.checkError())
 				System.err.println("Client: Error writing to socket");
 			
+			printWriter.flush();
 //			bufferedWriter.write(RPC_REQUEST_FILE + " " + filename);
 //			bufferedWriter.newLine(); //needed if server is using bufferedReader.readLine() to receive
 //			bufferedWriter.flush();
