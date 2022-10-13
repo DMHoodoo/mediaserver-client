@@ -8,6 +8,7 @@ package player;
 //import java.io.OutputStream;
 //import java.io.OutputStreamWriter;
 import java.io.*;
+import java.net.ConnectException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
@@ -24,6 +25,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 import player.Controller;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.control.ListView;
@@ -74,9 +76,9 @@ public class Client {
 						(socket.getInputStream()));
 				this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
 						(socket.getOutputStream()));				
-			} catch(SocketException e) {
+			} catch(ConnectException e) {
 				System.out.println("Server is unavailable.");
-			}
+			} 
 			
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -113,6 +115,8 @@ public class Client {
 				return true;
 		} catch (IOException e1) {
 			e1.printStackTrace();
+		} catch (NullPointerException e) {
+			System.out.println("Encountered a null socket.");
 		}
 		
 		// HOK : Failed attempt at setting a timeout for a thread.
@@ -164,12 +168,11 @@ public class Client {
 				System.out.println("Trying to connect to port A");
 
 				//try port A
-				for(int i = 0; i < 5; i++) {
-					System.out.println(i + "\'th attempt...");
-					
-					this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
-					
+				for(int i = 1; i < 6; i++) {
+					System.out.println("Port A Attempt " + i);
+	
 					try {
+						this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
 						socket.startHandshake();
 						//create data movers
 						this.bufferedReader = new BufferedReader(new InputStreamReader
@@ -179,10 +182,14 @@ public class Client {
 						
 						return true;
 					} catch(SocketException e) {
-						System.out.println("Connection failed, server unavailable." + e);
-						
+						System.out.println("Connection failed, server unavailable." + e);						
 					} finally {
-						obj.wait(1000);
+						try {
+							obj.wait(3000);
+						} catch (InterruptedException e) {
+							System.out.println("Interrupted on wait cycle 1.");
+							e.printStackTrace();
+						}
 					}
 
 //					if(socket != null) {
@@ -191,9 +198,10 @@ public class Client {
 
 				}
 				//try port B
-				for(int i = 0; i < 5; ++i) {
-					this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
+				for(int i = 1; i < 6; ++i) {
+					System.out.println("Port B Attempt " + i);
 					try{
+						this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
 						socket.startHandshake();
 						
 						//create data movers
@@ -203,10 +211,15 @@ public class Client {
 								(socket.getOutputStream()));
 						
 						return true;
-					}catch(SocketException e) {
+					} catch(SocketException e) {
 						System.out.println("Server is unavailable " + e);						
 					} finally {
-						obj.wait(1000);						
+						try {
+							obj.wait(1000);
+						} catch (InterruptedException e) {
+							System.out.println("Interrupted on wait cycle 2.");
+							e.printStackTrace();
+						}						
 					}
 //					if(socket != null) {
 //						return true;
@@ -214,10 +227,6 @@ public class Client {
 
 				}
 			}
-		} catch(InterruptedException e) {
-			System.out.println("Error creating client. Interrupted in verifyConnection().");
-			e.printStackTrace();
-			return false;
 		} catch (UnknownHostException e) {
 			System.out.println("Error creating client. Unknown host in verifyConnection().");
 			e.printStackTrace();
@@ -238,21 +247,14 @@ public class Client {
 	 */
 	public void receiveListFromServer(ListView<String> finalMediaList) {
 		
-		new Thread(new Runnable() {
-			@Override
-			public void run() {
+		//new Thread(new Runnable() {
+			//@Override
+			//public void run() {
+		Runnable task = () -> {
+			Platform.runLater(() -> {
 				ObservableList<String> tempMediaList = FXCollections.observableArrayList();
 				if(verifyConnection()) { 
-					
-					//DP: keeps from blocking
-//					try {
-//			    		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
-//						Client client = new Client(socketfact);
-//					}catch(Exception e) {
-//						e.printStackTrace();
-//						System.out.println("Error creating client.");
-//					}
-//					
+			
 					try {
 						printWriter = new PrintWriter(new BufferedWriter(
 								new OutputStreamWriter(socket.getOutputStream())));
@@ -284,7 +286,7 @@ public class Client {
 							
 						}
 						
-//						printWriter.print(RPC_REQUEST_SUCCESS);
+						//printWriter.print(RPC_REQUEST_SUCCESS);
 						printWriter.flush();
 						
 						finalMediaList.setItems(tempMediaList);
@@ -300,11 +302,14 @@ public class Client {
 						System.out.println("Server unavailable");
 						ObservableList<String> error = FXCollections.observableArrayList();
 						error.add("Server Unavaiable.");
-//						finalMediaList.setItems(error);
+						finalMediaList.setItems(error);
 					}
-			}
+			});
 			
-			}).start();
+			};
+			Thread thread = new Thread(task);
+	        thread.setDaemon(true);
+	        thread.start();
 
 	}
 	

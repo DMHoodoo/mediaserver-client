@@ -141,9 +141,9 @@ public class Controller implements Initializable {
 		}    	
 
     	//request list of available media
-        //DP: This will run the call evey 20 sec
+        //DP: This will run the call every 30 seconds
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
-        executor.scheduleAtFixedRate(() -> client.receiveListFromServer(mediaList), 0, 20, TimeUnit.SECONDS);
+        executor.scheduleAtFixedRate(() -> client.receiveListFromServer(mediaList), 0, 30, TimeUnit.SECONDS);
         
     	
         
