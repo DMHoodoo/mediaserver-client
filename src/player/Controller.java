@@ -96,7 +96,7 @@ public class Controller implements Initializable {
     private ListView<String> mediaList;    
     //Download Button for server downloads.
     @FXML
-    private Button downloadBtn;
+    private Button playBtn;
 
     // ImageViews for the buttons and labels.
     private ImageView ivPlay;
@@ -192,7 +192,7 @@ public class Controller implements Initializable {
         
         
         /**
-         * Play Button functionality
+         * Play/pause/restart Button functionality
          */
         buttonPPR.setOnAction(new EventHandler<ActionEvent>() {
             @Override
@@ -221,50 +221,45 @@ public class Controller implements Initializable {
         });
         
         /**
-         * Download button functionality
+         * Play button functionality
          */
-        downloadBtn.setOnAction(new EventHandler<ActionEvent>() {
+        playBtn.setOnAction(new EventHandler<ActionEvent>() {
         	@Override
         	public void handle(ActionEvent actionEvent) {
         		//pause player while waiting.
-        		mediaPlayer.pause();
+        		mediaPlayer.stop();
         		
         		//get clicked on list Item
         		String fileName = mediaList.getSelectionModel().getSelectedItem();
+        		File file = new File(CACHE + fileName);
         		
-        		//DP: REMOVE ONCE VALIDATE METHOD IS SET
-        		try {
-            		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
-        			client = new Client(socketfact);
-        		}catch(Exception e) {
-        			e.printStackTrace();
-        			System.out.println("Error creating client.");
-        		}
+        		client.verifyConnection();
         		
-        		//ask server for file //implement if statement for boolean return
-        		client.sendMediaRequest(fileName);
-        		System.out.println(fileName);
+        		if(!file.exists()) {
         		
-        		// Semaphore that counts down when media server thread finishes
-        		CountDownLatch threadSignal = new CountDownLatch(1);        		
+        			//ask server for file //implement if statement for boolean return
+        			client.sendMediaRequest(fileName);
+        		
+        			// Semaphore that counts down when media server thread finishes
+        			CountDownLatch threadSignal = new CountDownLatch(1);        		
 
-        		//receive media from Server
-        		client.receiveMediaFromServer(fileName, threadSignal);
+        			//receive media from Server
+        			client.receiveMediaFromServer(fileName, threadSignal);
         		
-        		// Wait until the thread from receiveMediaFromServer counts down
-        		try {
-					threadSignal.await();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-        		
-				File fullFile;
-				do {
-					fullFile = new File(CACHE + fileName);
-				}while(!fullFile.exists());
+        			// Wait until the thread from receiveMediaFromServer counts down
+        			try {
+        				threadSignal.await();
+        			} catch (InterruptedException e) {
+        				e.printStackTrace();
+        			}
+        		}
+				//File fullFile;
+				//do {
+					//fullFile = new File(CACHE + fileName);
+			//	}while(!fullFile.exists());
 				
         		//Update mediaPlayer with new media item
-        		mediaFile = new Media(new File(CACHE + fileName).toURI().toString());
+        		mediaFile = new Media(file.toURI().toString());
         	    mediaPlayer = new MediaPlayer(mediaFile);
         	    mediaPlayer.setAutoPlay(true);
         	    mediaView.setMediaPlayer(mediaPlayer);

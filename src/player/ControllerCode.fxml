@@ -92,7 +92,7 @@
       <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="447.0" prefWidth="200.0">
            <children>
               <Label layoutX="56.0" layoutY="6.0" text=" Available Media" />
-              <Button id="downloadBtn" fx:id="downloadBtn" layoutX="65.0" layoutY="408.0" mnemonicParsing="false" text="Download" />
+              <Button id="playBtn" fx:id="playBtn" layoutX="65.0" layoutY="408.0" mnemonicParsing="false" text="Play" />
               <ListView id="mediaList" fx:id="mediaList" layoutX="1.0" layoutY="23.0" prefHeight="380.0" prefWidth="200.0" AnchorPane.leftAnchor="1.0" AnchorPane.rightAnchor="-1.0" />
            </children>
        </AnchorPane>
