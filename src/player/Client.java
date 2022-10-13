@@ -39,6 +39,7 @@ public class Client {
 	static final String RPC_REQUEST_FILE = "requestfile";
 	static final String RPC_REQUEST_MD5 = "requestmd5";
 	static final String RPC_REQUEST_ISALIVE = "ping";
+	static final String RPC_DISCONNECT = "disconnect";
 	
 	//socket parts
 	private SSLSocketFactory socketfact;
@@ -51,7 +52,7 @@ public class Client {
 	
 	private String buffer;
 	private final int PORT_A = 4433;
-	private final int PORT_B = 4433;	
+	private final int PORT_B = 4434;	
 
 	/**
 	 * Constructor for Client socket creation
@@ -65,9 +66,11 @@ public class Client {
 		 */
 		try {
 			//create sockets and perform handshake
-			this.socketfact = socketfact;
-			this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
+			
 			try {
+				
+				this.socketfact = socketfact;
+				this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
 				socket.startHandshake();
 				System.out.println("Socket handshake started");
 				
@@ -423,6 +426,15 @@ public class Client {
 			}
 			if(socket != null) {
 				socket.close();
+			}
+			if(this.bufferedReader != null) {
+				this.bufferedReader.close();
+			}
+			if(this.bufferedWriter != null) {
+				this.bufferedWriter.close();
+			}
+			if(this.socket != null) {
+				this.socket.close();
 			}
 		}catch(IOException e) {
 			e.printStackTrace();

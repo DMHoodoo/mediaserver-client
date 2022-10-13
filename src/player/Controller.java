@@ -1,5 +1,6 @@
 package player;
 
+import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
@@ -10,7 +11,9 @@ import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.Slider;
@@ -19,6 +22,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
@@ -29,21 +33,25 @@ import javafx.util.Duration;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.File;
 import java.net.URL;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.Timer;
+
 
 /**
  * Class to manipulate and utilize the FXML GUI.
  */
 public class Controller implements Initializable {
 
-    //The main parent container
+    //The main window
+	@FXML
+	BorderPane window;
+	
+	//The main parent container
     @FXML
     private VBox vboxParent;
 
@@ -88,7 +96,7 @@ public class Controller implements Initializable {
     private ListView<String> mediaList;    
     //Download Button for server downloads.
     @FXML
-    private Button downloadBtn;
+    private Button playBtn;
 
     // ImageViews for the buttons and labels.
     private ImageView ivPlay;
@@ -127,6 +135,8 @@ public class Controller implements Initializable {
         mediaPlayer = new MediaPlayer(mediaFile);
         mediaPlayer.setAutoPlay(true);
         mediaView.setMediaPlayer(mediaPlayer);
+        mediaView.fitHeightProperty().bind(vboxParent.heightProperty());
+        mediaView.fitWidthProperty().bind(vboxParent.widthProperty());
         mediaPlayer.play();
 
         //Setup initial button Images and defaults
@@ -137,18 +147,52 @@ public class Controller implements Initializable {
 			client = new Client(socketfact);
 		}catch(Exception e) {
 			e.printStackTrace();
-			System.out.println("Error creating client.");
+			System.out.println("Error creating initial client.");
 		}    	
 
     	//request list of available media
-        //DP: This will run the call every 30 seconds
+        //This will run the call every 30 seconds
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
         executor.scheduleAtFixedRate(() -> client.receiveListFromServer(mediaList), 0, 30, TimeUnit.SECONDS);
+      
+        /**
+         * Handle closing the window
+         * Close all items
+         * Close server connection. 
+         * Clear Cache
+         */
+        Stage closeStage = Main.getPrimaryStage();
+        	closeStage.setOnCloseRequest( e -> { 
+            	 e.consume();
+            	 Alert a = 
+            	            new Alert(Alert.AlertType.CONFIRMATION, 
+            	                    "Are you sure you want to quit?", 
+            	                    ButtonType.YES,
+            	                    ButtonType.NO);
+            	      Optional<ButtonType> confirm = a.showAndWait();
+            	      File directory = new File(CACHE);
+            	      if (confirm.isPresent() && confirm.get() == ButtonType.YES) {           	    	  
+            	    	  //closes media player
+            	    	  mediaPlayer.dispose();
+            	    	  //closes refresh thread
+            	    	  executor.close();
+            	    	  //closes window
+            	    	  closeStage.close();
+            	          for (File file: Objects.requireNonNull(directory.listFiles())) {
+            	              if (!file.isDirectory()) {
+            	                  file.delete();
+            	              }
+            	          }
+            	    	  //CONNECTIONS NOT CLOSED
+            	          
+            	    	  //Platform.exit();
+            	    	  
+            	      }
+            }  );
         
-    	
         
         /**
-         * Play Button functionality
+         * Play/pause/restart Button functionality
          */
         buttonPPR.setOnAction(new EventHandler<ActionEvent>() {
             @Override
@@ -177,50 +221,45 @@ public class Controller implements Initializable {
         });
         
         /**
-         * Download button functionality
+         * Play button functionality
          */
-        downloadBtn.setOnAction(new EventHandler<ActionEvent>() {
+        playBtn.setOnAction(new EventHandler<ActionEvent>() {
         	@Override
         	public void handle(ActionEvent actionEvent) {
         		//pause player while waiting.
-        		mediaPlayer.pause();
+        		mediaPlayer.stop();
         		
         		//get clicked on list Item
         		String fileName = mediaList.getSelectionModel().getSelectedItem();
+        		File file = new File(CACHE + fileName);
         		
-        		//DP: REMOVE ONCE VALIDATE METHOD IS SET
-        		try {
-            		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
-        			client = new Client(socketfact);
-        		}catch(Exception e) {
-        			e.printStackTrace();
-        			System.out.println("Error creating client.");
-        		}
+        		client.verifyConnection();
         		
-        		//ask server for file //implement if statement for boolean return
-        		client.sendMediaRequest(fileName);
-        		System.out.println(fileName);
+        		if(!file.exists()) {
         		
-        		// Semaphore that counts down when media server thread finishes
-        		CountDownLatch threadSignal = new CountDownLatch(1);        		
+        			//ask server for file //implement if statement for boolean return
+        			client.sendMediaRequest(fileName);
+        		
+        			// Semaphore that counts down when media server thread finishes
+        			CountDownLatch threadSignal = new CountDownLatch(1);        		
 
-        		//receive media from Server
-        		client.receiveMediaFromServer(fileName, threadSignal);
+        			//receive media from Server
+        			client.receiveMediaFromServer(fileName, threadSignal);
         		
-        		// Wait until the thread from receiveMediaFromServer counts down
-        		try {
-					threadSignal.await();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-        		
-				File fullFile;
-				do {
-					fullFile = new File(CACHE + fileName);
-				}while(!fullFile.exists());
+        			// Wait until the thread from receiveMediaFromServer counts down
+        			try {
+        				threadSignal.await();
+        			} catch (InterruptedException e) {
+        				e.printStackTrace();
+        			}
+        		}
+				//File fullFile;
+				//do {
+					//fullFile = new File(CACHE + fileName);
+			//	}while(!fullFile.exists());
 				
         		//Update mediaPlayer with new media item
-        		mediaFile = new Media(new File(CACHE + fileName).toURI().toString());
+        		mediaFile = new Media(file.toURI().toString());
         	    mediaPlayer = new MediaPlayer(mediaFile);
         	    mediaPlayer.setAutoPlay(true);
         	    mediaView.setMediaPlayer(mediaPlayer);
@@ -336,6 +375,7 @@ public class Controller implements Initializable {
                 }
             }
         });
+        
 
         // Work with the full screen label.
         labelFullScreen.setOnMouseClicked(new EventHandler<MouseEvent>() {
