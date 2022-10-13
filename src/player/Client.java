@@ -111,6 +111,7 @@ public class Client {
 			// if null then it's dead.
 			buffer = bufferedReader.readLine();											
 			
+			System.out.println("Buffer in verify is " + buffer);
 			if(buffer != null)
 				return true;
 		} catch (IOException e1) {
@@ -253,6 +254,7 @@ public class Client {
 		Runnable task = () -> {
 			Platform.runLater(() -> {
 				ObservableList<String> tempMediaList = FXCollections.observableArrayList();
+				
 				if(verifyConnection()) { 
 			
 					try {
@@ -281,6 +283,7 @@ public class Client {
 							
 							buffer = buffer.replace("\0", "");
 							
+							System.out.println("buffer is currently " + buffer);
 							if(!buffer.equals(RPC_SUCCESS_STRING))
 								tempMediaList.add(buffer);						
 							
@@ -387,6 +390,10 @@ public class Client {
 							fos.write(buffer, 0, read);
 						}
 						
+						bufferedReader.readLine();
+						
+//						bufferedReader.close();
+//						fos.close();
 						threadSignal.countDown();
 					} catch (IOException e) {
 						System.out.println("Error making input file streams.");
