@@ -63,6 +63,8 @@ public class Client {
 	private final int PORT_B = 4434;	
 	private final String CACHE = "src/cache/";
 
+	private boolean checksumMatch = false;
+	
 	/**
 	 * Constructor for Client socket creation
 	 * 
@@ -295,8 +297,10 @@ public class Client {
 							buffer = buffer.replace("\0", "");
 							
 							System.out.println("buffer is currently " + buffer);
-							if(!buffer.equals(RPC_SUCCESS_STRING))
-								allFiles.add(buffer);						
+
+							
+							if(!buffer.equals(RPC_SUCCESS_STRING)) 
+								allFiles.add(buffer);																																			
 						}
 
 						printWriter.flush();
@@ -307,6 +311,34 @@ public class Client {
 						 */
 						for (File file : cacheFiles) {
 						    if (file.isFile()) {
+								CountDownLatch threadSignal = new CountDownLatch(1);
+								
+								System.out.println("Our boolean is " + checksumMatch);
+								validateFileToServer(file.getName(), threadSignal);
+
+								try {
+									threadSignal.await();
+								} catch (InterruptedException e) {
+									e.printStackTrace();
+								}
+								
+								System.out.println("Our boolean is now " + checksumMatch);
+								
+								CountDownLatch threadSignal2 = new CountDownLatch(1);
+								if(!checksumMatch) {									
+									
+				        			sendMediaRequest(file.getName());
+				        			receiveMediaFromServer(file.getName(), threadSignal2);
+				        			
+				        			try {
+										threadSignal2.await();
+									} catch (InterruptedException e) {
+										e.printStackTrace();
+									}
+								}
+								
+								
+						    	
 						        allFiles.add(file.getName());
 						    }
 						}
@@ -380,7 +412,7 @@ public class Client {
 		}
 	}
 	
-	public void validateFileToServer(String fileName) {
+	public void validateFileToServer(String fileName, CountDownLatch threadSignal) {
 //		System.out.println("Running ValidateFileToServer");
 		new Thread(new Runnable() {
 	
@@ -398,10 +430,10 @@ public class Client {
 //				System.out.println(socket.toString());
 //				System.out.println(socket.getOutputStream().toString());
 				
-//				System.out.println("Running testWriter");
+				System.out.println("Running testWriter");
 				
 				printWriter.print(RPC_REQUEST_MD5 + " \"" + fileName + "\"");
-//				System.out.println(testWriter.checkError());
+				System.out.println(printWriter.checkError());
 
 //				printWriter.print(RPC_REQUEST_MD5 + " \"" + fileName + "\"");
 				String buffer;
@@ -418,7 +450,13 @@ public class Client {
 				
 //				System.out.println("Local cache checksum is " + checksum);
 				printWriter.flush();
-//				threadSignal.countDown();
+				
+				
+				checksumMatch = (checksum.equals(buffer));
+				System.out.println("Checksum is " + checksumMatch);
+				System.out.println("Compared " + checksum + " with " + buffer);
+				
+				threadSignal.countDown();
 								
 				
 				
