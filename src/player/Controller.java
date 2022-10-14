@@ -6,6 +6,8 @@ import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
@@ -128,7 +130,6 @@ public class Controller implements Initializable {
      */
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {			
-    	
 		/**
 		 * Media Player creation. Media wrapped in player, player wrapped in view.
 		 */
@@ -143,6 +144,9 @@ public class Controller implements Initializable {
         //Setup initial button Images and defaults
         setImages();
         
+        /**
+         * Initial server/client connection
+         */
         try {
     		socketfact = (SSLSocketFactory) SSLSocketFactory.getDefault();
 			client = new Client(socketfact);
@@ -155,7 +159,58 @@ public class Controller implements Initializable {
         //This will run the call every 30 seconds
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
         executor.scheduleAtFixedRate(() -> client.receiveListFromServer(mediaList), 0, 30, TimeUnit.SECONDS);
-      
+        
+        /**
+         * Play button functionality
+         */
+        playBtn.setOnAction(new EventHandler<ActionEvent>() {
+        	@Override
+        	public void handle(ActionEvent actionEvent) {
+        		//pause player while waiting.
+        		mediaPlayer.stop();
+        		
+        		//get clicked on list Item
+        		String fileName = mediaList.getSelectionModel().getSelectedItem();
+        		File file = new File(CACHE + fileName);		     		
+        		
+        		if(!file.exists()) {
+        			client.verifyConnection();
+        		
+        			//ask server for file //implement if statement for boolean return
+        			client.sendMediaRequest(fileName);
+        		
+        			// Semaphore that counts down when media server thread finishes
+        			CountDownLatch threadSignal = new CountDownLatch(1);        		
+
+        			//receive media from Server
+        			client.receiveMediaFromServer(fileName, threadSignal);
+        		
+        			// Wait until the thread from receiveMediaFromServer counts down
+        			try {
+        				threadSignal.await();
+        			} catch (InterruptedException e) {
+        				e.printStackTrace();
+        			}
+        		}
+				
+        		//Update mediaPlayer with new media item
+        		mediaFile = new Media(file.toURI().toString());
+        	    mediaPlayer = new MediaPlayer(mediaFile);
+        	    mediaPlayer.setVolume(0.0);
+        	    mediaView.setMediaPlayer(mediaPlayer);
+        	    
+        	    // We need to wait for the media player to be ready according to the doc
+        	    // We use the "resetplayer" helper function to rebind time labels
+        	    // HOK: The change listeners weren't working for some reason
+        	    mediaPlayer.setOnReady(new Runnable() {
+        	    	@Override
+        	    	public void run() { 	    		                	    
+                	    resetPlayer(mediaFile);                	    
+                	    mediaPlayer.play();  
+        	    	}
+        	    });
+        }});
+        
         /**
          * Handle closing the window
          * Close all items
@@ -165,6 +220,8 @@ public class Controller implements Initializable {
         Stage closeStage = Main.getPrimaryStage();
         	closeStage.setOnCloseRequest( e -> { 
             	 e.consume();
+            	 mediaPlayer.pause();
+            	 
             	 Alert a = 
             	            new Alert(Alert.AlertType.CONFIRMATION, 
             	                    "Are you sure you want to quit?", 
@@ -177,6 +234,8 @@ public class Controller implements Initializable {
             	    	  mediaPlayer.dispose();
             	    	  //closes refresh thread
             	    	  executor.close();
+            	    	  //close server connection
+            	    	  client.breakupWithServer();
             	    	  //closes window
             	    	  closeStage.close();
             	          for (File file: Objects.requireNonNull(directory.listFiles())) {
@@ -188,6 +247,9 @@ public class Controller implements Initializable {
             	          
             	    	  //Platform.exit();
             	    	  
+            	      }
+            	      else {
+            	    	  mediaPlayer.play();
             	      }
             }  );
         
@@ -220,78 +282,6 @@ public class Controller implements Initializable {
                 }
             }
         });
-        
-        /**
-         * Play button functionality
-         */
-        playBtn.setOnAction(new EventHandler<ActionEvent>() {
-        	@Override
-        	public void handle(ActionEvent actionEvent) {
-        		//pause player while waiting.
-        		mediaPlayer.stop();
-        		
-        		//get clicked on list Item
-        		String fileName = mediaList.getSelectionModel().getSelectedItem();
-        		File file = new File(CACHE + fileName);
-        		
-        		client.verifyConnection();
-        		
-        		if(!file.exists()) {
-//        		CountDownLatch testLatch = new CountDownLatch(1);
-        		
-//        			System.out.println("TRYING TO VALIDATE FILE OKAY?!?!?!?!?!?");
-//        			client.validateFileToServer("intro.mp4");
-        			
-//        			try {
-//						testLatch.await();
-//					} catch (InterruptedException e1) {
-//						// TODO Auto-generated catch block
-//						e1.printStackTrace();
-//					}
-        			
-//        			return;
-//        			System.out.println("Sending media request!!");
-        			//ask server for file //implement if statement for boolean return
-        			client.sendMediaRequest(fileName);
-        		
-        			// Semaphore that counts down when media server thread finishes
-        			CountDownLatch threadSignal = new CountDownLatch(1);        		
-        			
-//        			System.out.println("Receiving media!!!");
-        			//receive media from Server
-        			client.receiveMediaFromServer(fileName, threadSignal);
-        		
-        			// Wait until the thread from receiveMediaFromServer counts down
-        			try {
-        				threadSignal.await();
-        			} catch (InterruptedException e) {
-        				e.printStackTrace();
-        			}
-
-        		}
-				
-        		//Update mediaPlayer with new media item
-        		mediaFile = new Media(file.toURI().toString());
-        	    mediaPlayer = new MediaPlayer(mediaFile);
-        	    mediaPlayer.setAutoPlay(true);
-        	    mediaView.setMediaPlayer(mediaPlayer);
-        	    
-        	    // We need to wait for the media player to be ready according to the doc
-        	    // We use the "resetplayer" helper function to rebind time labels
-        	    // HOK: The change listeners weren't working for some reason
-        	    mediaPlayer.setOnReady(new Runnable() {
-        	    	@Override
-        	    	public void run() { 	    		                	    
-                	    resetPlayer(mediaFile);                	    
-                	    mediaPlayer.play();  
-                	    
-
-        	    	}
-        	    });
-        	    
-//        	    client.validateFileToServer(fileName);
-        }});
-
         
         // Connect volume of video to slider
         mediaPlayer.volumeProperty().bindBidirectional(sliderVolume.valueProperty());
@@ -504,9 +494,25 @@ public class Controller implements Initializable {
      */
     public void resetPlayer(Media media) {
 	    bindCurrentTimeLabel();
+	    mediaPlayer.currentTimeProperty().addListener(new ChangeListener<Duration>() {
+            @Override
+            public void changed(ObservableValue<? extends Duration> observableValue, Duration oldTime, Duration newTime) {
+                bindCurrentTimeLabel();
+                if (!sliderTime.isValueChanging()) {
+                    sliderTime.setValue(newTime.toSeconds());
+                }
+                labelsMatchEndVideo(labelCurrentTime.getText(), labelTotalTime.getText());
+            }
+        });
 	    sliderTime.setMax(media.getDuration().toSeconds());
 	    sliderTime.setValue(0);
-	    labelTotalTime.setText(getTime(media.getDuration()));     	
+	    labelTotalTime.setText(getTime(media.getDuration())); 
+	 // When started the button should have the pause sign because it is playing.
+        buttonPPR.setGraphic(ivPause);
+        // The video starts out muted so originally have the volume label be the muted speaker.
+        labelVolume.setGraphic(ivMute);
+        // The video is at normal speed at the beginning.
+        labelSpeed.setText("1X");
     }
     
     /**
