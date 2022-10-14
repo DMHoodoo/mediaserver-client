@@ -253,10 +253,6 @@ public class Controller implements Initializable {
         				e.printStackTrace();
         			}
         		}
-				//File fullFile;
-				//do {
-					//fullFile = new File(CACHE + fileName);
-			//	}while(!fullFile.exists());
 				
         		//Update mediaPlayer with new media item
         		mediaFile = new Media(file.toURI().toString());
