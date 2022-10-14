@@ -16,6 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -57,6 +61,7 @@ public class Client {
 	private String buffer;
 	private final int PORT_A = 4433;
 	private final int PORT_B = 4434;	
+	private final String CACHE = "src/cache/";
 
 	/**
 	 * Constructor for Client socket creation
@@ -255,12 +260,11 @@ public class Client {
 	 */
 	public void receiveListFromServer(ListView<String> finalMediaList) {
 		
-		//new Thread(new Runnable() {
-			//@Override
-			//public void run() {
 		Runnable task = () -> {
 			Platform.runLater(() -> {
 				ObservableList<String> tempMediaList = FXCollections.observableArrayList();
+				HashSet<String> allFiles = new HashSet<>();
+				File[] cacheFiles = new File(CACHE).listFiles();
 				
 				if(verifyConnection()) { 
 			
@@ -292,13 +296,26 @@ public class Client {
 							
 							System.out.println("buffer is currently " + buffer);
 							if(!buffer.equals(RPC_SUCCESS_STRING))
-								tempMediaList.add(buffer);						
-							
+								allFiles.add(buffer);						
 						}
-						
-						//printWriter.print(RPC_REQUEST_SUCCESS);
+
 						printWriter.flush();
 						
+						/**
+						 * Add items in cache that may have been removed from server
+						 * and remove any duplicates.
+						 */
+						for (File file : cacheFiles) {
+						    if (file.isFile()) {
+						        allFiles.add(file.getName());
+						    }
+						}
+						//System.out.println(allFiles); for testing remove DP
+						for(String filename : allFiles) {
+							tempMediaList.add(filename);
+						}
+
+						//set full list to listView
 						finalMediaList.setItems(tempMediaList);
 						System.out.println("List retreived.");
 
@@ -308,6 +325,7 @@ public class Client {
 						closeEverything(socket, bufferedReader, bufferedWriter);
 					}
 				}
+				//DP: Remove once testing complete
 				else {
 						System.out.println("Server unavailable");
 						ObservableList<String> error = FXCollections.observableArrayList();

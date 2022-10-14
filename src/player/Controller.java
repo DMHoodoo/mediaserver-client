@@ -267,11 +267,8 @@ public class Controller implements Initializable {
         			} catch (InterruptedException e) {
         				e.printStackTrace();
         			}
-//        		}
-				//File fullFile;
-				//do {
-					//fullFile = new File(CACHE + fileName);
-			//	}while(!fullFile.exists());
+
+        		}
 				
         		//Update mediaPlayer with new media item
         		mediaFile = new Media(file.toURI().toString());
@@ -293,7 +290,7 @@ public class Controller implements Initializable {
         	    });
         	    
 //        	    client.validateFileToServer(fileName);
-        }}});
+        }});
 
         
         // Connect volume of video to slider
