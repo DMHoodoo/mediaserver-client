@@ -128,6 +128,7 @@ public class Controller implements Initializable {
      */
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {			
+    	
 		/**
 		 * Media Player creation. Media wrapped in player, player wrapped in view.
 		 */
@@ -236,13 +237,27 @@ public class Controller implements Initializable {
         		client.verifyConnection();
         		
         		if(!file.exists()) {
+//        		CountDownLatch testLatch = new CountDownLatch(1);
         		
+//        			System.out.println("TRYING TO VALIDATE FILE OKAY?!?!?!?!?!?");
+//        			client.validateFileToServer("intro.mp4");
+        			
+//        			try {
+//						testLatch.await();
+//					} catch (InterruptedException e1) {
+//						// TODO Auto-generated catch block
+//						e1.printStackTrace();
+//					}
+        			
+//        			return;
+//        			System.out.println("Sending media request!!");
         			//ask server for file //implement if statement for boolean return
         			client.sendMediaRequest(fileName);
         		
         			// Semaphore that counts down when media server thread finishes
         			CountDownLatch threadSignal = new CountDownLatch(1);        		
-
+        			
+//        			System.out.println("Receiving media!!!");
         			//receive media from Server
         			client.receiveMediaFromServer(fileName, threadSignal);
         		
@@ -252,7 +267,7 @@ public class Controller implements Initializable {
         			} catch (InterruptedException e) {
         				e.printStackTrace();
         			}
-        		}
+//        		}
 				//File fullFile;
 				//do {
 					//fullFile = new File(CACHE + fileName);
@@ -272,9 +287,13 @@ public class Controller implements Initializable {
         	    	public void run() { 	    		                	    
                 	    resetPlayer(mediaFile);                	    
                 	    mediaPlayer.play();  
+                	    
+
         	    	}
         	    });
-        }});
+        	    
+//        	    client.validateFileToServer(fileName);
+        }}});
 
         
         // Connect volume of video to slider
