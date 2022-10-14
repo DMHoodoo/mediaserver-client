@@ -12,10 +12,6 @@ import java.net.ConnectException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -350,21 +346,17 @@ public class Client {
 	 * @param filename
 	 */
 	public void sendMediaRequest(String filename) {
+		if(verifyConnection()) {
+		
 		try {
-//			CountDown
-//			validateFileToServer(filename);
-			
-//			System.out.println("Sending media request RPC_REQUEST_FILE = " + RPC_REQUEST_FILE + " filename= " + filename);
+			System.out.println("Sending media request RPC_REQUEST_FILE = " + RPC_REQUEST_FILE + " filename= " + filename);
 			printWriter = new PrintWriter(new BufferedWriter(
 					new OutputStreamWriter(
 							socket.getOutputStream())));			
 			
-//			System.out.println("")
-//			System.out.println("Attempting to send: " + RPC_REQUEST_MD5 + " \"" + filename + "\"");
-//			printWriter.print(RPC_REQUEST_MD5 + " \"" + filename + "\"");
 			printWriter.print(RPC_REQUEST_FILE + " \"" + filename + "\"");
 			
-//			System.out.println("Sent RPC request");
+			System.out.println("Sent RPC request");
 			
 			if(printWriter.checkError())
 				System.err.println("Client: Error writing to socket");
@@ -377,94 +369,7 @@ public class Client {
 			e.printStackTrace();
 			System.out.println("Error sending message to the client.");
 			closeEverything(socket, bufferedReader, bufferedWriter);
-		}
-	}
-	
-	public void validateFileToServer(String fileName) {
-//		System.out.println("Running ValidateFileToServer");
-		new Thread(new Runnable() {
-	
-				@Override
-				public void run() {		
-			
-			try {						
-				PrintWriter printWriter = new PrintWriter(new BufferedWriter(
-						new OutputStreamWriter(
-								socket.getOutputStream())));			
-				
-				BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(
-						socket.getInputStream()));
-				
-//				System.out.println(socket.toString());
-//				System.out.println(socket.getOutputStream().toString());
-				
-//				System.out.println("Running testWriter");
-				
-				printWriter.print(RPC_REQUEST_MD5 + " \"" + fileName + "\"");
-//				System.out.println(testWriter.checkError());
-
-//				printWriter.print(RPC_REQUEST_MD5 + " \"" + fileName + "\"");
-				String buffer;
-//				System.out.println("Attempting to read validation line");
-				buffer = bufferedReader.readLine();
-				
-//				System.out.println("MD5 for " +  fileName + " is " + buffer + " on server");
-				
-	//			try(InputStream inputStrea)
-				MessageDigest md = MessageDigest.getInstance("MD5");
-				
-				File file = new File("src/cache/" + fileName);
-				String checksum = checksum(md, file);
-				
-//				System.out.println("Local cache checksum is " + checksum);
-				printWriter.flush();
-//				threadSignal.countDown();
-								
-				
-				
-				
-			} catch(IOException e) {
-				System.out.println("IOException encountered " + e);
-			} catch (NoSuchAlgorithmException e) {
-				System.out.println("NoSuchAlgorithm Exception: " + e);
-			}
-		}}).start();
-
-	}
-	
-	private String checksum(MessageDigest digest, File file) {
-		FileInputStream fileInputStream = null;
-		
-		try {
-			fileInputStream = new FileInputStream(file);
-		} catch (FileNotFoundException e1) {
-			e1.printStackTrace();
-		}
-		
-		byte[] byteArray = new byte[1024];
-		int bytesCount = 0;
-		
-		try {
-			while((bytesCount = fileInputStream.read(byteArray)) != -1) {
-				digest.update(byteArray, 0, bytesCount);
-			}
-			
-			fileInputStream.close();
-			
-			byte[] bytes = digest.digest();
-
-			StringBuilder sb = new StringBuilder();
-			
-			for(int i = 0; i < bytes.length; i++) {
-				sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1));
-			}
-			
-			return sb.toString();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		
-		return null;
+		}}
 	}
 	
 	/**
@@ -485,7 +390,7 @@ public class Client {
 				int totalRead = 0;
 				int remaining = 0;
 				
-				if(socket != null) {
+				if(verifyConnection()) {
 					try {
 						//initial read of file size
 						bufferedReader = new BufferedReader(new InputStreamReader(
@@ -510,14 +415,9 @@ public class Client {
 						
 						bufferedReader.readLine();
 						
-						System.out.println("Attempting to verify now...");
-						
 //						bufferedReader.close();
 //						fos.close();
 						threadSignal.countDown();
-						
-
-
 					} catch (IOException e) {
 						System.out.println("Error making input file streams.");
 						e.printStackTrace();
@@ -526,7 +426,6 @@ public class Client {
 			}
 		}).start();
 	}
-	
 	
 	
 	/**
@@ -560,6 +459,21 @@ public class Client {
 		}catch(IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public void breakupWithServer() {
+		verifyConnection();
+		
+		try {
+			printWriter = new PrintWriter(new BufferedWriter(
+					new OutputStreamWriter(socket.getOutputStream())));
+
+			printWriter.print(RPC_DISCONNECT);
+		} catch(IOException e) {
+			System.out.println("Error breaking up with Server.");
+		}
+
+
 	}
 	
 }
