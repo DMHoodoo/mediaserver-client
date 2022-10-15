@@ -24,6 +24,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -323,7 +327,7 @@ public class Client {
 								CountDownLatch threadSignal2 = new CountDownLatch(1);
 								if(!checksumMatch) {									
 									
-									sendMediaRequest(file.getName());
+//									sendMediaRequest(file.getName());
 									receiveMediaFromServer(file.getName(), threadSignal2);
 									
 									try {
@@ -518,6 +522,20 @@ public class Client {
 				
 				if(verifyConnection()) {
 					try {
+						System.out.println("Sending media request RPC_REQUEST_FILE = " + RPC_REQUEST_FILE + " filename= " + fileName);
+						printWriter = new PrintWriter(new BufferedWriter(
+							new OutputStreamWriter(
+								socket.getOutputStream())));			
+						
+						printWriter.print(RPC_REQUEST_FILE + " \"" + fileName + "\"");
+						
+						System.out.println("Sent RPC request");
+						
+						if(printWriter.checkError())
+							System.err.println("Client: Error writing to socket");
+						
+						printWriter.flush();						
+						
 						//initial read of file size
 						bufferedReader = new BufferedReader(new InputStreamReader(
 							socket.getInputStream()));

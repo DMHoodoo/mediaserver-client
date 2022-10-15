@@ -177,7 +177,7 @@ public class Controller implements Initializable {
         			client.verifyConnection();
         		
         			//ask server for file //implement if statement for boolean return
-        			client.sendMediaRequest(fileName);
+//        			client.sendMediaRequest(fileName);
         		
         			// Semaphore that counts down when media server thread finishes
         			CountDownLatch threadSignal = new CountDownLatch(1);        		
