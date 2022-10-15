@@ -1,47 +1,31 @@
 package player;
 
-//import java.io.BufferedReader;
-//import java.io.BufferedWriter;
-//import java.io.DataInputStream;
-//import java.io.IOException;
-//import java.io.InputStreamReader;
-//import java.io.OutputStream;
-//import java.io.OutputStreamWriter;
 import java.io.*;
 import java.net.ConnectException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-
-import player.Controller;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.control.ListView;
-import javafx.scene.media.MediaPlayer;
 
 
 
+/**
+ * Class to create and use an SSL client connection
+ * 
+ * @author Dacia Pennington
+ *
+ */
 public class Client {
+	//RPC finals for the server
 	static final int RPC_REQUEST_SUCCESS = 0;	
 	static final String RPC_REQUEST_LISTING = "requestlisting";
 	static final String RPC_REQUEST_FILE = "requestfile";
@@ -50,8 +34,7 @@ public class Client {
 	static final String RPC_DISCONNECT = "disconnect";
 	
 	// Error and sub-codes (Where relevant)	
-	static final int SERVER_ERROR = 1;
-	
+	static final int SERVER_ERROR = 1;	
 	static final int RPC_ERROR = 2;
 	static final int INVALID_COMMAND = 0;
 	static final int TOO_FEW_ARGS = 1;
@@ -92,7 +75,6 @@ public class Client {
 				this.socketfact = socketfact;
 				this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
 				socket.startHandshake();
-				System.out.println("Socket handshake started");
 				
 				//create data movers
 				this.bufferedReader = new BufferedReader(new InputStreamReader
@@ -111,6 +93,12 @@ public class Client {
 		
 	}
 	
+	/**
+	 * Checks server response to validate connection is active
+	 * 
+	 * @param bufferedReader
+	 * @return
+	 */
 	public String processResponse(BufferedReader bufferedReader) {
 		String serverReply = null;
 		
@@ -121,9 +109,6 @@ public class Client {
 		}
 		
 		String[] splitString = serverReply.split(" ");
-//		System.out.println("Full string is " + serverReply);
-//		if(splitString.length == 2)
-//			System.out.println("S[0] = " + splitString[0] + " S[1] = " + splitString[1]);
 		
 		if(splitString.length == 2) {
 			int mainCode = Integer.parseInt(splitString[0].replace("\0", ""));
@@ -160,8 +145,7 @@ public class Client {
 	
 	/**
 	 * Checks if client is connected.
-	 * If false new connection is attempted before returning false 
-	 * after connection failure.
+	 * If false new connection is attempted several times.
 	 * 
 	 * @return
 	 */
@@ -177,25 +161,21 @@ public class Client {
 					bufferedReader = new BufferedReader(new InputStreamReader
 						(socket.getInputStream()));								
 					
-					// Send Heartbeat/ISALIVE request to see if connection is still active
+					// Send request to see if connection is still active
 					printWriter.print(RPC_REQUEST_ISALIVE + "\0");
-					
-					
-					
+
 					printWriter.flush();
 					
-					// Look for response, if "pong", then it's alive
-					// if null then it's dead.
-					buffer = processResponse(bufferedReader);//bufferedReader.readLine();									
+					// Look for response, if "pong", then connected. 
+					buffer = processResponse(bufferedReader);									
 					
 					if(buffer == null) {
 						threadSignal.countDown();
 						return;															
 					}
-					
-					System.out.println("Buffer in verify is " + buffer);
+
 					if(buffer != null) {
-						System.out.println("Is connected is TRUEE!!!");
+						System.out.println("Connetion verified.");
 						isConnected = true;
 						connectionConfirmed = true;
 						threadSignal.countDown();
@@ -207,8 +187,7 @@ public class Client {
 					System.out.println("Encountered a null socket.");
 				}
 				threadSignal.countDown();
-				
-															
+																			
 				if(!connectionConfirmed) {
 					isConnected = false;
 					Object obj = new Object();
@@ -216,12 +195,10 @@ public class Client {
 					//if not connected, attempt both ports x5
 					try {
 						synchronized(obj) {
-							System.out.println("Trying to connect to port A");
 			
 							//try port A
 							for(int i = 1; i < 6 && !connectionConfirmed; i++) {
-								System.out.println("Port A Attempt " + i);
-								
+									
 								try {
 									socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
 									socket.startHandshake();
@@ -233,7 +210,7 @@ public class Client {
 									
 									isConnected = true;
 									connectionConfirmed = true;
-//									threadSignal.countDown();
+
 								} catch(SocketException e) {
 									System.out.println("Connection failed, server unavailable." + e);						
 									isConnected = false;
@@ -246,13 +223,10 @@ public class Client {
 									}
 								}
 			
-			//					if(socket != null) {
-			//						return true;
-			//					}
-			
 							}
-							if(!connectionConfirmed) {
-								//try port B
+							
+							//try port B
+							if(!connectionConfirmed) {							
 								for(int i = 1; i < 6 && !connectionConfirmed; ++i) {
 									System.out.println("Port B Attempt " + i);
 									try{
@@ -267,7 +241,6 @@ public class Client {
 										
 										isConnected = true;
 										connectionConfirmed = true;
-//										threadSignal.countDown();
 									} catch(SocketException e) {
 										System.out.println("Server is unavailable " + e);						
 										isConnected = false;
@@ -279,12 +252,6 @@ public class Client {
 											e.printStackTrace();
 										}						
 									}
-								
-									
-				//					if(socket != null) {
-				//						return true;
-				//					}
-				
 								}
 							}
 						}
@@ -298,8 +265,6 @@ public class Client {
 						isConnected = false;
 					}	
 				}
-				
-//				threadSignal.countDown();
 			}}).start();
 	}
 	
@@ -313,6 +278,7 @@ public class Client {
 		
 		Runnable task = () -> {
 			Platform.runLater(() -> {
+				//list assembly items
 				ObservableList<String> tempMediaList = FXCollections.observableArrayList();
 				HashSet<String> allFiles = new HashSet<>();
 				File[] cacheFiles = new File(CACHE).listFiles();
@@ -324,7 +290,6 @@ public class Client {
 				try {
 					verifyThreadSignal.await();
 				} catch (InterruptedException e1) {
-					// TODO Auto-generated catch block
 					e1.printStackTrace();
 				}
 				
@@ -347,9 +312,6 @@ public class Client {
 						if(buffer == null) 
 							return;
 						
-
-						System.out.println("Sent.");
-						
 						buffer = "-1";
 
 						String RPC_SUCCESS_STRING = Integer.toString(RPC_REQUEST_SUCCESS);
@@ -362,10 +324,7 @@ public class Client {
 							}
 							
 							buffer = buffer.replace("\0", "");
-							
-							System.out.println("buffer is currently " + buffer);
-
-							
+					
 							if(!buffer.equals(RPC_SUCCESS_STRING)) 
 								allFiles.add(buffer);																																			
 						}
@@ -389,8 +348,6 @@ public class Client {
 									e.printStackTrace();
 								}
 								
-								System.out.println("Our boolean is now " + checksumMatch);
-								
 								CountDownLatch threadSignal2 = new CountDownLatch(1);
 								if(!checksumMatch) {									
 									checksumMatch = true;
@@ -403,13 +360,10 @@ public class Client {
 										e.printStackTrace();
 									}
 								}
-								
-								
-								
+	
 								allFiles.add(file.getName());
 							}
 						}
-						//System.out.println(allFiles); for testing remove DP
 						for(String filename : allFiles) {
 							tempMediaList.add(filename);
 						}
@@ -424,10 +378,6 @@ public class Client {
 						closeEverything(socket, bufferedReader, bufferedWriter);
 					}
 				}
-				//DP: Remove once testing complete
-				else {
-					System.out.println("Server unavailable");
-				}
 			});
 			
 		};
@@ -441,7 +391,6 @@ public class Client {
 	 * Sends message to server via String to request a certain file from the list of 
 	 * available media.
 	 * 
-	 * DP:needs placed in controller with scrollbox clickable control
 	 * 
 	 * @param filename
 	 */
@@ -450,7 +399,6 @@ public class Client {
 		
 		verifyConnection(verifyThreadSignal);
 		
-//		verifyThreadSignal.await();
 		if(isConnected) {
 			
 			try {
@@ -461,7 +409,7 @@ public class Client {
 				
 				printWriter.print(RPC_REQUEST_FILE + " \"" + filename + "\"");
 				
-				System.out.println("Sent RPC request");
+				System.out.println("Sent RPC file request.");
 				
 				if(printWriter.checkError())
 					System.err.println("Client: Error writing to socket");
@@ -476,8 +424,15 @@ public class Client {
 		}
 	}
 	
+	/**
+	 * Method ensures that the client has the most up to date version of the file
+	 * on the server via md5 checksum. 
+	 *  
+	 * @param fileName
+	 * @param threadSignal
+	 */
 	public void validateFileToServer(String fileName, CountDownLatch threadSignal) {
-//		System.out.println("Running ValidateFileToServer");
+
 		new Thread(new Runnable() {
 			
 			@Override
@@ -497,36 +452,27 @@ public class Client {
 					printWriter.print(RPC_REQUEST_MD5 + " \"" + fileName + "\"");
 					System.out.println(printWriter.checkError());
 
-//				printWriter.print(RPC_REQUEST_MD5 + " \"" + fileName + "\"");
 					String buffer;
-//				System.out.println("Attempting to read validation line");
+
 					buffer = processResponse(bufferedReader);
 					
 					if(buffer == null) {
 						threadSignal.countDown();
 						return;
 					}
-					
-//				System.out.println("MD5 for " +  fileName + " is " + buffer + " on server");
-					
-	//			try(InputStream inputStrea)
+
 					MessageDigest md = MessageDigest.getInstance("MD5");
 					
 					File file = new File("cache/" + fileName);
 					String checksum = checksum(md, file);
 					
-//				System.out.println("Local cache checksum is " + checksum);
 					printWriter.flush();
-					
-					
+						
 					checksumMatch = (checksum.equals(buffer));
 					System.out.println("Checksum is " + checksumMatch);
 					System.out.println("Compared " + checksum + " with " + buffer);
 					
 					threadSignal.countDown();
-					
-					
-					
 					
 				} catch(IOException e) {
 					System.out.println("IOException encountered " + e);
@@ -575,8 +521,6 @@ public class Client {
 	/**
 	 * Receive media file from server
 	 * 
-	 * DP: This needs to be sent file size as well as file name
-	 * DP: This is not correct and is currently based on txt messages
 	 * @param fileName of sought after media
 	 */
 	public void receiveMediaFromServer(String fileName, CountDownLatch threadSignal) {	
@@ -713,8 +657,6 @@ public class Client {
 		} catch(IOException e) {
 			System.out.println("Error breaking up with Server.");
 		}
-
-
 	}
 	
 }

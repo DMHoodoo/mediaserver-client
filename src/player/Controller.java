@@ -1,13 +1,10 @@
 package player;
 
-import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
 import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
@@ -109,9 +106,6 @@ public class Controller implements Initializable {
     private ImageView ivMute;
     private ImageView ivExit;
     
-    @FXML
-    private ImageView KPLogo;
-    
     //Private functional variables unrelated to FXML
    
     // Checks if the video is at the end.
@@ -123,7 +117,6 @@ public class Controller implements Initializable {
     private final String RES = "resources/";
     private final String CACHE = "cache/";
     private final String START_FILE = "resources/Welcome.mp4";
-    private final String KP_LOGO = "resources/logo.png";
     
     //SSL Connection integration
     private Client client;
@@ -135,7 +128,6 @@ public class Controller implements Initializable {
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {			
     	Thread.currentThread().setPriority(Thread.MAX_PRIORITY);        
-    	
 
 		/**
 		 * Media Player creation. Media wrapped in player, player wrapped in view.
@@ -181,12 +173,9 @@ public class Controller implements Initializable {
         		String fileName = mediaList.getSelectionModel().getSelectedItem();
         		File file = new File(CACHE + fileName);		     		
         		
+        		//Only download if file not already in cache
         		if(!file.exists()) {
-//        			client.verifyConnection();
-        		
-        			//ask server for file //implement if statement for boolean return
-//        			client.sendMediaRequest(fileName);
-        		
+
         			// Semaphore that counts down when media server thread finishes
         			CountDownLatch threadSignal = new CountDownLatch(1);        		
 
@@ -208,15 +197,12 @@ public class Controller implements Initializable {
 	        		mediaFile = new Media(file.toURI().toString());
 	        		
 	        	    mediaPlayer = new MediaPlayer(mediaFile);
-	        	    
-	        	    
-	        	    
+
 	        	    mediaPlayer.setVolume(currentVolume);
 	        	    mediaView.setMediaPlayer(mediaPlayer);
 	        	    
 	        	    // We need to wait for the media player to be ready according to the doc
 	        	    // We use the "resetplayer" helper function to rebind time labels
-	        	    // HOK: The change listeners weren't working for some reason
 	        	    mediaPlayer.setOnReady(new Runnable() {
 	        	    	@Override
 	        	    	public void run() { 	    		                	    
@@ -261,10 +247,6 @@ public class Controller implements Initializable {
             	                  file.delete();
             	              }
             	          }
-            	    	  //CONNECTIONS NOT CLOSED
-            	          
-            	    	  //Platform.exit();
-            	    	  
             	      }
             	      else {
             	    	  mediaPlayer.play();
@@ -311,7 +293,7 @@ public class Controller implements Initializable {
                 // Set the volume of the video to the slider's value.
                 mediaPlayer.setVolume(sliderVolume.getValue());
                 // If the video's volume isn't 0 then it is not muted so set the
-                // label to the unmuted speaker and set isMuted to false.
+                // label to the un-muted speaker and set isMuted to false.
                 if (mediaPlayer.getVolume() != 0.0) {
                     labelVolume.setGraphic(ivVolume);
                     isMuted = false;
@@ -323,8 +305,6 @@ public class Controller implements Initializable {
                 }
             }
         });
-
-        
 
         // When the speed label is clicked on adjust the speed of the video
         // and change the text appropriately.
@@ -348,7 +328,7 @@ public class Controller implements Initializable {
             @Override
             public void handle(MouseEvent mouseEvent) {
                 // If the video is muted and the volume button was clicked then it
-                // should now be unmuted so set the image of the label to the unmuted
+                // should now be un-muted so set the image of the label to the un-muted
                 // speaker and set the value of the slider.
                 // Then set isMuted to false.
                 if (isMuted) {
@@ -459,7 +439,6 @@ public class Controller implements Initializable {
 
         // valueChangingProperty() - when true, indicates the current value of the slider is changing.
         // valueProperty() - the current value represented by the slider.
-
         // ValueProperty() is the current value represented by the slider. This value must always be between min and max.
         sliderTime.valueProperty().addListener(new ChangeListener<Number>() {
             @Override
@@ -644,6 +623,10 @@ public class Controller implements Initializable {
         }
     }
 
+    /**
+     * Bind the text of the current time label to the current time of the video.
+     * This will allow the timer to update along with the video.
+     */
     public void bindCurrentTimeLabel() {
         // Bind the text of the current time label to the current time of the video.
         // This will allow the timer to update along with the video.
