@@ -130,6 +130,8 @@ public class Controller implements Initializable {
      */
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {			
+    	Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
+    	
 		/**
 		 * Media Player creation. Media wrapped in player, player wrapped in view.
 		 */
