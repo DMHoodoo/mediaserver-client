@@ -49,6 +49,14 @@ public class Client {
 	static final String RPC_REQUEST_ISALIVE = "ping";
 	static final String RPC_DISCONNECT = "disconnect";
 	
+	// Error and sub-codes (Where relevant)	
+	static final int SERVER_ERROR = 1;
+	
+	static final int RPC_ERROR = 2;
+	static final int INVALID_COMMAND = 0;
+	static final int TOO_FEW_ARGS = 1;
+	static final int TOO_MANY_ARGS = 2;
+	
 	//socket parts
 	private SSLSocketFactory socketfact;
 	private SSLSocket socket;
@@ -61,9 +69,9 @@ public class Client {
 	private String buffer;
 	private final int PORT_A = 4433;
 	private final int PORT_B = 4434;	
-	private final String CACHE = "src/cache/";
+	private final String CACHE = "cache/";
 
-	private boolean checksumMatch = false;
+	private boolean checksumMatch = true;
 	private boolean isConnected = false;
 	
 	/**
@@ -100,6 +108,54 @@ public class Client {
 			System.out.println("Error creating client.");
 			closeEverything(socket, bufferedReader, bufferedWriter);
 		}
+		
+	}
+	
+	public String processResponse(BufferedReader bufferedReader) {
+		String serverReply = null;
+		
+		try {
+			serverReply = bufferedReader.readLine();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		String[] splitString = serverReply.split(" ");
+//		System.out.println("Full string is " + serverReply);
+//		if(splitString.length == 2)
+//			System.out.println("S[0] = " + splitString[0] + " S[1] = " + splitString[1]);
+		
+		if(splitString.length == 2) {
+			int mainCode = Integer.parseInt(splitString[0].replace("\0", ""));
+			int subCode = Integer.parseInt(splitString[1].replace("\0", ""));
+			
+			switch(mainCode) {
+				case RPC_REQUEST_SUCCESS:
+					return serverReply;
+				case SERVER_ERROR:
+					System.out.println("Server failure! Error Code: " + subCode);
+					return null;
+				case RPC_ERROR:
+					switch(subCode) {
+						case INVALID_COMMAND:
+							System.out.println("Invalid command issued.");
+							return null;
+						case TOO_FEW_ARGS:
+							System.out.println("Too few arguments supplied to command");
+							return null;
+						case TOO_MANY_ARGS:
+							System.out.println("Too many arguments supplied to command");
+							return null;
+					}
+				break;
+				default:
+					return serverReply;
+			}
+		} else {
+			return serverReply;
+		}
+		
+		return serverReply;
 	}
 	
 	/**
@@ -119,71 +175,42 @@ public class Client {
 						new OutputStreamWriter(socket.getOutputStream())));
 					
 					bufferedReader = new BufferedReader(new InputStreamReader
-						(socket.getInputStream()));			
+						(socket.getInputStream()));								
 					
 					// Send Heartbeat/ISALIVE request to see if connection is still active
 					printWriter.print(RPC_REQUEST_ISALIVE + "\0");
+					
+					
 					
 					printWriter.flush();
 					
 					// Look for response, if "pong", then it's alive
 					// if null then it's dead.
-					buffer = bufferedReader.readLine();											
+					buffer = processResponse(bufferedReader);//bufferedReader.readLine();									
+					
+					if(buffer == null) {
+						threadSignal.countDown();
+						return;															
+					}
 					
 					System.out.println("Buffer in verify is " + buffer);
 					if(buffer != null) {
+						System.out.println("Is connected is TRUEE!!!");
 						isConnected = true;
 						connectionConfirmed = true;
-					}
+						threadSignal.countDown();
+					}				
 					
 				} catch (IOException e1) {
 					e1.printStackTrace();
 				} catch (NullPointerException e) {
 					System.out.println("Encountered a null socket.");
 				}
+				threadSignal.countDown();
 				
-				// HOK : Failed attempt at setting a timeout for a thread.
-				// Kept it here as it's an interesting example for setting timeouts on threads
-				// TODELETE!!!
-		//		boolean test = false;
-		//		ExecutorService executorService = Executors.newFixedThreadPool(1);
-		//		Future<?> future = executorService.submit(new Thread(new Runnable() {
-		//				@Override
-		//				public void run() {
-		//					try {
-		//						printWriter = new PrintWriter(new BufferedWriter(
-		//								new OutputStreamWriter(socket.getOutputStream())));
-		//						
-		//						//send RPC
-		//						System.out.println("Sending is alive request");
-		//						printWriter.print(RPC_REQUEST_ISALIVE);
-		//						
-		//						
-		//						buffer = bufferedReader.readLine();								
-		//						System.out.println("Received " + buffer);
-		//						
-		//						if(buffer.equals("pong")) {
-		//							System.out.println("Returned the correct value");
-		//						}
-		//					}catch(IOException e) {
-		//						System.out.println(e);
-		//					}
-		//				}
-		//			}));
-		//		
-		//		try {
-		//			future.get(20, TimeUnit.SECONDS);
-		//		} catch(TimeoutException e) {
-		//			future.cancel(true);
-		//			return false;
-		//		} catch (InterruptedException e) {
-		//			e.printStackTrace();
-		//		} catch (ExecutionException e) {
-		//			e.printStackTrace();
-		//		}
-				// TODELETE!!!!
-				
+															
 				if(!connectionConfirmed) {
+					isConnected = false;
 					Object obj = new Object();
 			
 					//if not connected, attempt both ports x5
@@ -206,6 +233,7 @@ public class Client {
 									
 									isConnected = true;
 									connectionConfirmed = true;
+//									threadSignal.countDown();
 								} catch(SocketException e) {
 									System.out.println("Connection failed, server unavailable." + e);						
 									isConnected = false;
@@ -239,6 +267,7 @@ public class Client {
 										
 										isConnected = true;
 										connectionConfirmed = true;
+//										threadSignal.countDown();
 									} catch(SocketException e) {
 										System.out.println("Server is unavailable " + e);						
 										isConnected = false;
@@ -270,7 +299,7 @@ public class Client {
 					}	
 				}
 				
-				threadSignal.countDown();
+//				threadSignal.countDown();
 			}}).start();
 	}
 	
@@ -308,11 +337,18 @@ public class Client {
 						//send RPC
 						System.out.println("Sending list request.");
 						printWriter.print(RPC_REQUEST_LISTING);
-						System.out.println("Sent.");
-
+						
 						if(printWriter.checkError()) {
 							System.err.println("Client: Error writing to socket");
 						}
+						
+						buffer = processResponse(bufferedReader);
+											
+						if(buffer == null) 
+							return;
+						
+
+						System.out.println("Sent.");
 						
 						buffer = "-1";
 
@@ -357,8 +393,8 @@ public class Client {
 								
 								CountDownLatch threadSignal2 = new CountDownLatch(1);
 								if(!checksumMatch) {									
-									
-//									sendMediaRequest(file.getName());
+									checksumMatch = true;
+
 									receiveMediaFromServer(file.getName(), threadSignal2);
 									
 									try {
@@ -391,9 +427,6 @@ public class Client {
 				//DP: Remove once testing complete
 				else {
 					System.out.println("Server unavailable");
-					ObservableList<String> error = FXCollections.observableArrayList();
-					error.add("Server Unavaiable.");
-					finalMediaList.setItems(error);
 				}
 			});
 			
@@ -417,7 +450,7 @@ public class Client {
 		
 		verifyConnection(verifyThreadSignal);
 		
-		verifyThreadSignal.countDown();
+//		verifyThreadSignal.await();
 		if(isConnected) {
 			
 			try {
@@ -434,9 +467,7 @@ public class Client {
 					System.err.println("Client: Error writing to socket");
 				
 				printWriter.flush();
-//			bufferedWriter.write(RPC_REQUEST_FILE + " " + filename);
-//			bufferedWriter.newLine(); //needed if server is using bufferedReader.readLine() to receive
-//			bufferedWriter.flush();
+
 			}catch(IOException e) {
 				e.printStackTrace();
 				System.out.println("Error sending message to the client.");
@@ -459,9 +490,7 @@ public class Client {
 					
 					BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(
 						socket.getInputStream()));
-					
-//				System.out.println(socket.toString());
-//				System.out.println(socket.getOutputStream().toString());
+
 					
 					System.out.println("Running testWriter");
 					
@@ -471,14 +500,19 @@ public class Client {
 //				printWriter.print(RPC_REQUEST_MD5 + " \"" + fileName + "\"");
 					String buffer;
 //				System.out.println("Attempting to read validation line");
-					buffer = bufferedReader.readLine();
+					buffer = processResponse(bufferedReader);
+					
+					if(buffer == null) {
+						threadSignal.countDown();
+						return;
+					}
 					
 //				System.out.println("MD5 for " +  fileName + " is " + buffer + " on server");
 					
 	//			try(InputStream inputStrea)
 					MessageDigest md = MessageDigest.getInstance("MD5");
 					
-					File file = new File("src/cache/" + fileName);
+					File file = new File("cache/" + fileName);
 					String checksum = checksum(md, file);
 					
 //				System.out.println("Local cache checksum is " + checksum);
@@ -565,6 +599,7 @@ public class Client {
 			    	verifyThreadSignal.await();
 				}catch (InterruptedException e1) {
 					// TODO Auto-generated catch block
+					threadSignal.countDown();
 					e1.printStackTrace();
 				}
 					
@@ -587,12 +622,22 @@ public class Client {
 						//initial read of file size
 						bufferedReader = new BufferedReader(new InputStreamReader(
 							socket.getInputStream()));
-						size = Integer.parseInt(bufferedReader.readLine());
+						
+						
+						String strBuffer = processResponse(bufferedReader);
+						
+						if(strBuffer == null) {
+							threadSignal.countDown();
+							return;
+						}
+						
+						size = Integer.parseInt(strBuffer);
+						
 						System.out.println("File Size is: " + size);
 						
 						//second read for file data
 						DataInputStream dis = new DataInputStream(socket.getInputStream());
-						FileOutputStream fos = new FileOutputStream("src/cache/" + fileName);
+						FileOutputStream fos = new FileOutputStream("cache/" + fileName);
 						
 						buffer = new byte[256];				
 
@@ -614,6 +659,8 @@ public class Client {
 						System.out.println("Error making input file streams.");
 						e.printStackTrace();
 					}	
+				} else {
+					threadSignal.countDown();
 				}
 			}
 		}).start();

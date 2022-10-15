@@ -12,6 +12,7 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -42,7 +43,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
 
 /**
  * Class to manipulate and utilize the FXML GUI.
@@ -109,6 +109,9 @@ public class Controller implements Initializable {
     private ImageView ivMute;
     private ImageView ivExit;
     
+    @FXML
+    private ImageView KPLogo;
+    
     //Private functional variables unrelated to FXML
    
     // Checks if the video is at the end.
@@ -117,9 +120,10 @@ public class Controller implements Initializable {
     private boolean isPlaying = true;
     // Checks if the video is muted or not.
     private boolean isMuted = true;
-    private final String RES = "src/resources/";
-    private final String CACHE = "src/cache/";
-    private final String START_FILE = "src/resources/LSDunes.mp4";
+    private final String RES = "resources/";
+    private final String CACHE = "cache/";
+    private final String START_FILE = "resources/Welcome.mp4";
+    private final String KP_LOGO = "resources/logo.png";
     
     //SSL Connection integration
     private Client client;
@@ -130,18 +134,20 @@ public class Controller implements Initializable {
      */
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {			
-    	Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
+    	Thread.currentThread().setPriority(Thread.MAX_PRIORITY);        
     	
+
 		/**
 		 * Media Player creation. Media wrapped in player, player wrapped in view.
 		 */
         mediaFile = new Media(new File(START_FILE).toURI().toString());
         mediaPlayer = new MediaPlayer(mediaFile);
         mediaPlayer.setAutoPlay(true);
-        mediaView.setMediaPlayer(mediaPlayer);
+        mediaView.setMediaPlayer(mediaPlayer);       
         mediaView.fitHeightProperty().bind(vboxParent.heightProperty());
         mediaView.fitWidthProperty().bind(vboxParent.widthProperty());
         mediaPlayer.play();
+       
 
         //Setup initial button Images and defaults
         setImages();
@@ -161,7 +167,7 @@ public class Controller implements Initializable {
         //This will run the call every 30 seconds
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
         executor.scheduleAtFixedRate(() -> client.receiveListFromServer(mediaList), 0, 30, TimeUnit.SECONDS);
-        
+
         /**
          * Play button functionality
          */
@@ -194,23 +200,33 @@ public class Controller implements Initializable {
         				e.printStackTrace();
         			}
         		}
-				
+        		
+        		double currentVolume = mediaPlayer.getVolume();
+        		
         		//Update mediaPlayer with new media item
-        		mediaFile = new Media(file.toURI().toString());
-        	    mediaPlayer = new MediaPlayer(mediaFile);
-        	    mediaPlayer.setVolume(0.0);
-        	    mediaView.setMediaPlayer(mediaPlayer);
-        	    
-        	    // We need to wait for the media player to be ready according to the doc
-        	    // We use the "resetplayer" helper function to rebind time labels
-        	    // HOK: The change listeners weren't working for some reason
-        	    mediaPlayer.setOnReady(new Runnable() {
-        	    	@Override
-        	    	public void run() { 	    		                	    
-                	    resetPlayer(mediaFile);                	    
-                	    mediaPlayer.play();  
-        	    	}
-        	    });
+        		try {
+	        		mediaFile = new Media(file.toURI().toString());
+	        		
+	        	    mediaPlayer = new MediaPlayer(mediaFile);
+	        	    
+	        	    
+	        	    
+	        	    mediaPlayer.setVolume(currentVolume);
+	        	    mediaView.setMediaPlayer(mediaPlayer);
+	        	    
+	        	    // We need to wait for the media player to be ready according to the doc
+	        	    // We use the "resetplayer" helper function to rebind time labels
+	        	    // HOK: The change listeners weren't working for some reason
+	        	    mediaPlayer.setOnReady(new Runnable() {
+	        	    	@Override
+	        	    	public void run() { 	    		                	    
+	                	    resetPlayer(mediaFile);                	    
+	                	    mediaPlayer.play();  
+	        	    	}
+	        	    });
+        		} catch (Exception e) {
+        			System.out.println("Failed to retrieve file.");
+        		}
         }});
         
         /**
@@ -509,10 +525,12 @@ public class Controller implements Initializable {
 	    sliderTime.setMax(media.getDuration().toSeconds());
 	    sliderTime.setValue(0);
 	    labelTotalTime.setText(getTime(media.getDuration())); 
-	 // When started the button should have the pause sign because it is playing.
+	    // When started the button should have the pause sign because it is playing.
         buttonPPR.setGraphic(ivPause);
+        
         // The video starts out muted so originally have the volume label be the muted speaker.
-        labelVolume.setGraphic(ivMute);
+        Node currGraphic = labelVolume.getGraphic();
+        labelVolume.setGraphic(currGraphic.equals(ivMute) ? currGraphic : ivVolume);
         // The video is at normal speed at the beginning.
         labelSpeed.setText("1X");
     }
@@ -526,6 +544,7 @@ public class Controller implements Initializable {
  		 * BEGIN: Applying images to buttons
          * Play button
          */
+    	
         Image imagePlay = new Image(new File(RES + "play-btn.png").toURI().toString());
         ivPlay = new ImageView(imagePlay);
         ivPlay.setFitWidth(35);
