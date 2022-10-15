@@ -64,6 +64,7 @@ public class Client {
 	private final String CACHE = "src/cache/";
 
 	private boolean checksumMatch = false;
+	private boolean isConnected = false;
 	
 	/**
 	 * Constructor for Client socket creation
@@ -108,150 +109,169 @@ public class Client {
 	 * 
 	 * @return
 	 */
-	public Boolean verifyConnection() {
-		try {
-			printWriter = new PrintWriter(new BufferedWriter(
-				new OutputStreamWriter(socket.getOutputStream())));
-			
-			this.bufferedReader = new BufferedReader(new InputStreamReader
-				(socket.getInputStream()));			
-			
-			// Send Heartbeat/ISALIVE request to see if connection is still active
-			printWriter.print(RPC_REQUEST_ISALIVE + "\0");
-			
-			printWriter.flush();
-			
-			// Look for response, if "pong", then it's alive
-			// if null then it's dead.
-			buffer = bufferedReader.readLine();											
-			
-			System.out.println("Buffer in verify is " + buffer);
-			if(buffer != null)
-				return true;
-		} catch (IOException e1) {
-			e1.printStackTrace();
-		} catch (NullPointerException e) {
-			System.out.println("Encountered a null socket.");
-		}
+	public void verifyConnection(CountDownLatch threadSignal) {
 		
-		// HOK : Failed attempt at setting a timeout for a thread.
-		// Kept it here as it's an interesting example for setting timeouts on threads
-		// TODELETE!!!
-//		boolean test = false;
-//		ExecutorService executorService = Executors.newFixedThreadPool(1);
-//		Future<?> future = executorService.submit(new Thread(new Runnable() {
-//				@Override
-//				public void run() {
-//					try {
-//						printWriter = new PrintWriter(new BufferedWriter(
-//								new OutputStreamWriter(socket.getOutputStream())));
-//						
-//						//send RPC
-//						System.out.println("Sending is alive request");
-//						printWriter.print(RPC_REQUEST_ISALIVE);
-//						
-//						
-//						buffer = bufferedReader.readLine();								
-//						System.out.println("Received " + buffer);
-//						
-//						if(buffer.equals("pong")) {
-//							System.out.println("Returned the correct value");
-//						}
-//					}catch(IOException e) {
-//						System.out.println(e);
-//					}
-//				}
-//			}));
-//		
-//		try {
-//			future.get(20, TimeUnit.SECONDS);
-//		} catch(TimeoutException e) {
-//			future.cancel(true);
-//			return false;
-//		} catch (InterruptedException e) {
-//			e.printStackTrace();
-//		} catch (ExecutionException e) {
-//			e.printStackTrace();
-//		}
-		// TODELETE!!!!
-		
-		Object obj = new Object();
-
-		//if not connected, attempt both ports x5
-		try {
-			synchronized(obj) {
-				System.out.println("Trying to connect to port A");
-
-				//try port A
-				for(int i = 1; i < 6; i++) {
-					System.out.println("Port A Attempt " + i);
+		new Thread(new Runnable() {
+			public void run() {
+				boolean connectionConfirmed = false;
+				try {
+					printWriter = new PrintWriter(new BufferedWriter(
+						new OutputStreamWriter(socket.getOutputStream())));
 					
+					bufferedReader = new BufferedReader(new InputStreamReader
+						(socket.getInputStream()));			
+					
+					// Send Heartbeat/ISALIVE request to see if connection is still active
+					printWriter.print(RPC_REQUEST_ISALIVE + "\0");
+					
+					printWriter.flush();
+					
+					// Look for response, if "pong", then it's alive
+					// if null then it's dead.
+					buffer = bufferedReader.readLine();											
+					
+					System.out.println("Buffer in verify is " + buffer);
+					if(buffer != null) {
+						isConnected = true;
+						connectionConfirmed = true;
+					}
+					
+				} catch (IOException e1) {
+					e1.printStackTrace();
+				} catch (NullPointerException e) {
+					System.out.println("Encountered a null socket.");
+				}
+				
+				// HOK : Failed attempt at setting a timeout for a thread.
+				// Kept it here as it's an interesting example for setting timeouts on threads
+				// TODELETE!!!
+		//		boolean test = false;
+		//		ExecutorService executorService = Executors.newFixedThreadPool(1);
+		//		Future<?> future = executorService.submit(new Thread(new Runnable() {
+		//				@Override
+		//				public void run() {
+		//					try {
+		//						printWriter = new PrintWriter(new BufferedWriter(
+		//								new OutputStreamWriter(socket.getOutputStream())));
+		//						
+		//						//send RPC
+		//						System.out.println("Sending is alive request");
+		//						printWriter.print(RPC_REQUEST_ISALIVE);
+		//						
+		//						
+		//						buffer = bufferedReader.readLine();								
+		//						System.out.println("Received " + buffer);
+		//						
+		//						if(buffer.equals("pong")) {
+		//							System.out.println("Returned the correct value");
+		//						}
+		//					}catch(IOException e) {
+		//						System.out.println(e);
+		//					}
+		//				}
+		//			}));
+		//		
+		//		try {
+		//			future.get(20, TimeUnit.SECONDS);
+		//		} catch(TimeoutException e) {
+		//			future.cancel(true);
+		//			return false;
+		//		} catch (InterruptedException e) {
+		//			e.printStackTrace();
+		//		} catch (ExecutionException e) {
+		//			e.printStackTrace();
+		//		}
+				// TODELETE!!!!
+				
+				if(!connectionConfirmed) {
+					Object obj = new Object();
+			
+					//if not connected, attempt both ports x5
 					try {
-						this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
-						socket.startHandshake();
-						//create data movers
-						this.bufferedReader = new BufferedReader(new InputStreamReader
-							(socket.getInputStream()));
-						this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
-							(socket.getOutputStream()));						
-						
-						return true;
-					} catch(SocketException e) {
-						System.out.println("Connection failed, server unavailable." + e);						
-					} finally {
-						try {
-							obj.wait(3000);
-						} catch (InterruptedException e) {
-							System.out.println("Interrupted on wait cycle 1.");
-							e.printStackTrace();
+						synchronized(obj) {
+							System.out.println("Trying to connect to port A");
+			
+							//try port A
+							for(int i = 1; i < 6 && !connectionConfirmed; i++) {
+								System.out.println("Port A Attempt " + i);
+								
+								try {
+									socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
+									socket.startHandshake();
+									//create data movers
+									bufferedReader = new BufferedReader(new InputStreamReader
+										(socket.getInputStream()));
+									bufferedWriter = new BufferedWriter(new OutputStreamWriter
+										(socket.getOutputStream()));						
+									
+									isConnected = true;
+									connectionConfirmed = true;
+								} catch(SocketException e) {
+									System.out.println("Connection failed, server unavailable." + e);						
+									isConnected = false;
+								} finally {
+									try {
+										obj.wait(3000);
+									} catch (InterruptedException e) {
+										System.out.println("Interrupted on wait cycle 1.");
+										e.printStackTrace();
+									}
+								}
+			
+			//					if(socket != null) {
+			//						return true;
+			//					}
+			
+							}
+							if(!connectionConfirmed) {
+								//try port B
+								for(int i = 1; i < 6 && !connectionConfirmed; ++i) {
+									System.out.println("Port B Attempt " + i);
+									try{
+										socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
+										socket.startHandshake();
+										
+										//create data movers
+										bufferedReader = new BufferedReader(new InputStreamReader
+											(socket.getInputStream()));
+										bufferedWriter = new BufferedWriter(new OutputStreamWriter
+											(socket.getOutputStream()));
+										
+										isConnected = true;
+										connectionConfirmed = true;
+									} catch(SocketException e) {
+										System.out.println("Server is unavailable " + e);						
+										isConnected = false;
+									} finally {
+										try {
+											obj.wait(1000);
+										} catch (InterruptedException e) {
+											System.out.println("Interrupted on wait cycle 2.");
+											e.printStackTrace();
+										}						
+									}
+								
+									
+				//					if(socket != null) {
+				//						return true;
+				//					}
+				
+								}
+							}
 						}
-					}
-
-//					if(socket != null) {
-//						return true;
-//					}
-
+					} catch (UnknownHostException e) {
+						System.out.println("Error creating client. Unknown host in verifyConnection().");
+						e.printStackTrace();
+						isConnected = false;
+					} catch (IOException e) {
+						System.out.println("Error creating client. IO Exception in verifyConnection().");
+						e.printStackTrace();
+						isConnected = false;
+					}	
 				}
-				//try port B
-				for(int i = 1; i < 6; ++i) {
-					System.out.println("Port B Attempt " + i);
-					try{
-						this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
-						socket.startHandshake();
-						
-						//create data movers
-						this.bufferedReader = new BufferedReader(new InputStreamReader
-							(socket.getInputStream()));
-						this.bufferedWriter = new BufferedWriter(new OutputStreamWriter
-							(socket.getOutputStream()));
-						
-						return true;
-					} catch(SocketException e) {
-						System.out.println("Server is unavailable " + e);						
-					} finally {
-						try {
-							obj.wait(1000);
-						} catch (InterruptedException e) {
-							System.out.println("Interrupted on wait cycle 2.");
-							e.printStackTrace();
-						}						
-					}
-//					if(socket != null) {
-//						return true;
-//					}
-
-				}
-			}
-		} catch (UnknownHostException e) {
-			System.out.println("Error creating client. Unknown host in verifyConnection().");
-			e.printStackTrace();
-			return false;
-		} catch (IOException e) {
-			System.out.println("Error creating client. IO Exception in verifyConnection().");
-			e.printStackTrace();
-			return false;
-		}	
-		return false;
+				
+				threadSignal.countDown();
+			}}).start();
 	}
 	
 	/**
@@ -268,7 +288,18 @@ public class Client {
 				HashSet<String> allFiles = new HashSet<>();
 				File[] cacheFiles = new File(CACHE).listFiles();
 				
-				if(verifyConnection()) { 
+				CountDownLatch verifyThreadSignal = new CountDownLatch(1);
+				
+				verifyConnection(verifyThreadSignal);
+				
+				try {
+					verifyThreadSignal.await();
+				} catch (InterruptedException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+				
+				if(this.isConnected) { 
 					
 					try {
 						printWriter = new PrintWriter(new BufferedWriter(
@@ -382,7 +413,12 @@ public class Client {
 	 * @param filename
 	 */
 	public void sendMediaRequest(String filename) {
-		if(verifyConnection()) {
+		CountDownLatch verifyThreadSignal = new CountDownLatch(1);
+		
+		verifyConnection(verifyThreadSignal);
+		
+		verifyThreadSignal.countDown();
+		if(isConnected) {
 			
 			try {
 				System.out.println("Sending media request RPC_REQUEST_FILE = " + RPC_REQUEST_FILE + " filename= " + filename);
@@ -520,7 +556,19 @@ public class Client {
 				int totalRead = 0;
 				int remaining = 0;
 				
-				if(verifyConnection()) {
+				CountDownLatch verifyThreadSignal = new CountDownLatch(1);
+				
+
+				verifyConnection(verifyThreadSignal);				
+				
+			    try {			
+			    	verifyThreadSignal.await();
+				}catch (InterruptedException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+					
+				if(isConnected) {
 					try {
 						System.out.println("Sending media request RPC_REQUEST_FILE = " + RPC_REQUEST_FILE + " filename= " + fileName);
 						printWriter = new PrintWriter(new BufferedWriter(
@@ -606,7 +654,9 @@ public class Client {
 	}
 	
 	public void breakupWithServer() {
-		verifyConnection();
+		CountDownLatch verifyThreadSignal = new CountDownLatch(1);
+		
+		verifyConnection(verifyThreadSignal);
 		
 		try {
 			printWriter = new PrintWriter(new BufferedWriter(

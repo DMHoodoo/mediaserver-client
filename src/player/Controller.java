@@ -174,7 +174,7 @@ public class Controller implements Initializable {
         		File file = new File(CACHE + fileName);		     		
         		
         		if(!file.exists()) {
-        			client.verifyConnection();
+//        			client.verifyConnection();
         		
         			//ask server for file //implement if statement for boolean return
 //        			client.sendMediaRequest(fileName);
