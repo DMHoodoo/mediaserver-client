@@ -121,7 +121,7 @@ public class Controller implements Initializable {
 	private final String START_FILE = "resources/Welcome.mp4";
 
 	// How often (in seconds) we poll the server
-	private final int POLLING_RATE = 10;
+	private final int POLLING_RATE = 5;
 
 	// SSL Connection integration
 	private Client client;
@@ -174,6 +174,10 @@ public class Controller implements Initializable {
 		updateListService.setOnSucceeded(e -> {
 			System.out.println("Setting media list...");
 			mediaList.setItems(((ListView<String>) e.getSource().getValue()).getItems());
+		});
+		
+		updateListService.setOnFailed(e -> {
+			System.out.println("Update list service failed!");
 		});
 
 		/**
@@ -718,6 +722,8 @@ public class Controller implements Initializable {
 			return new Task<>() {
 				@Override
 				protected ListView<String> call() throws Exception {
+					System.out.println("Attempting to receive list...");
+					System.out.println(client);
 					ListView<String> mediaList = client.receiveListFromServer(getMediaList());
 					return mediaList;
 				} 

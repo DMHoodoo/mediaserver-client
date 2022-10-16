@@ -69,7 +69,9 @@ public class Client {
 	 * @param socketfact
 	 */
 	public Client(SSLSocketFactory socketfact) {
-
+		
+		mutex = new Semaphore(1);
+		
 		/**
 		 * Initial connection attempt for sockets and data movers
 		 */
@@ -87,27 +89,32 @@ public class Client {
 				this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 				this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 
-				mutex = new Semaphore(1);
+				
 			} catch (ConnectException e) {
 				System.out.println("Server is unavailable.");
+			} catch (SocketException e) {
+				System.out.println(e);
 			}
 			
 			if(socket == null) {
-			try {
-
-				this.socketfact = socketfact;
-				this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
-				socket.startHandshake();
-				System.out.println("Connection 1: Port B");
-
-				// create data movers
-				this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-				this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-
-				mutex = new Semaphore(1);
-			} catch (ConnectException e) {
-				System.out.println("Server is unavailable.");
-			}}
+				try {
+	
+					this.socketfact = socketfact;
+					this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
+					socket.startHandshake();
+					System.out.println("Connection 1: Port B");
+	
+					// create data movers
+					this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+					this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+	
+					mutex = new Semaphore(1);
+				} catch (ConnectException e) {
+					System.out.println("Server is unavailable.");
+				} catch (SocketException e) {
+					System.out.println(e);
+				}
+			}
 
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -307,7 +314,7 @@ public class Client {
 			}
 		}).start();
 	}
-
+	
 	/**
 	 * Accept list of available filenames from Server Refreshes every 30 seconds
 	 * 
@@ -315,25 +322,31 @@ public class Client {
 	 */
 	public ListView<String> receiveListFromServer(ListView<String> finalMediaList) {
 
+		System.out.println("Receiving list");
 		try {
 			mutex.acquire();
 		} catch (InterruptedException e2) {
 			System.out.println(e2);
 		}
-
+		System.out.println("Mutex acquired");
+		
 		ObservableList<String> tempMediaList = FXCollections.observableArrayList();
 		HashSet<String> allFiles = new HashSet<>();
 		File[] cacheFiles = new File(CACHE).listFiles();
 
 		CountDownLatch verifyThreadSignal = new CountDownLatch(1);
-
+		
+		System.out.println("Verifying connection");
 		verifyConnection(verifyThreadSignal);
-
+		System.out.println("Connection verified");
+		
 		try {
 			verifyThreadSignal.await();
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
 		}
+		
+		System.out.println("Thread awaited");
 
 		if (this.isConnected) {
 
