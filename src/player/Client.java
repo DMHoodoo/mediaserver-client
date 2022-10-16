@@ -81,6 +81,7 @@ public class Client {
 				this.socketfact = socketfact;
 				this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
 				socket.startHandshake();
+				System.out.println("Connection 1: Port A");
 
 				// create data movers
 				this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -90,6 +91,23 @@ public class Client {
 			} catch (ConnectException e) {
 				System.out.println("Server is unavailable.");
 			}
+			
+			if(socket == null) {
+			try {
+
+				this.socketfact = socketfact;
+				this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
+				socket.startHandshake();
+				System.out.println("Connection 1: Port B");
+
+				// create data movers
+				this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+				this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+
+				mutex = new Semaphore(1);
+			} catch (ConnectException e) {
+				System.out.println("Server is unavailable.");
+			}}
 
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -108,48 +126,56 @@ public class Client {
 	 */
 	public String processResponse(BufferedReader bufferedReader) {
 		String serverReply = null;
+		String[] splitString;
 
 		try {
 			serverReply = bufferedReader.readLine();
+		} catch (SocketException e) {
+			System.out.println("Encountered a null socket.");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 
-		String[] splitString = serverReply.split(" ");
+		//if(serverReply != null) {
+			splitString = serverReply.split(" ");
 
-		if (splitString.length == 2) {
-			int mainCode = Integer.parseInt(splitString[0].replace("\0", ""));
-			int subCode = Integer.parseInt(splitString[1].replace("\0", ""));
+			if (splitString.length == 2) {
+				int mainCode = Integer.parseInt(splitString[0].replace("\0", ""));
+				int subCode = Integer.parseInt(splitString[1].replace("\0", ""));
 
-			switch (mainCode) {
-			case RPC_REQUEST_SUCCESS:
-				return serverReply;
-			case SERVER_ERROR:
-				System.out.println("Server failure! Error Code: " + subCode);
-				return null;
-			case RPC_ERROR:
-				switch (subCode) {
-				case INVALID_COMMAND:
-					System.out.println("Invalid command issued.");
-					return null;
-				case TOO_FEW_ARGS:
-					System.out.println("Too few arguments supplied to command");
-					return null;
-				case TOO_MANY_ARGS:
-					System.out.println("Too many arguments supplied to command");
-					return null;
-				case MALFORMED_REQUEST:
-					System.out.println("Malformed request");
-					return null;
-				default:
-					System.out.println("Undefined error");
-					return null;					
+				switch (mainCode) {
+					case RPC_REQUEST_SUCCESS:
+						return serverReply;
+					case SERVER_ERROR:
+						System.out.println("Server failure! Error Code: " + subCode);
+						return null;
+					case RPC_ERROR:
+						switch (subCode) {
+							case INVALID_COMMAND:
+								System.out.println("Invalid command issued.");
+								return null;
+							case TOO_FEW_ARGS:
+								System.out.println("Too few arguments supplied to command");
+								return null;
+							case TOO_MANY_ARGS:
+								System.out.println("Too many arguments supplied to command");
+								return null;
+							case MALFORMED_REQUEST:
+								System.out.println("Malformed request");
+								return null;
+							default:
+								System.out.println("Undefined error");
+								return null;					
+							}
+					default:
+						return serverReply;
 				}
-			default:
+			} else 
 				return serverReply;
-			}
-		} else 
-			return serverReply;
+		//}
+		//else {
+		//	return null;
+		//}
 		
 	}
 
@@ -185,12 +211,15 @@ public class Client {
 						threadSignal.countDown();
 					}
 
+				} catch (SocketException e) {
+					System.out.println("Encountered a null socket.");
 				} catch (IOException e1) {
 					e1.printStackTrace();
 				} catch (NullPointerException e) {
 					System.out.println("Encountered a null socket.");
-				}
+				} 
 
+				
 				if (!connectionConfirmed) {
 					isConnected = false;
 					Object obj = new Object();
@@ -203,9 +232,10 @@ public class Client {
 							for (int i = 1; i < 6 && !connectionConfirmed; i++) {
 
 								try {
-									System.out.println("Retrying DEFAULT port");
+									System.out.println("Retrying DEFAULT port. Attempt " + i);
 									socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
 									socket.startHandshake();
+									System.out.println("Connection Retry: Port A");
 									// create data movers
 									bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 									bufferedWriter = new BufferedWriter(
@@ -236,6 +266,7 @@ public class Client {
 										System.out.println("Retrying BACKUP port");										
 										socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
 										socket.startHandshake();
+										System.out.println("Connection Retry: Port B");
 
 										// create data movers
 										bufferedReader = new BufferedReader(
@@ -371,7 +402,7 @@ public class Client {
 							try {
 								threadSignal2.await();
 							} catch (InterruptedException e) {
-								e.printStackTrace();
+								System.out.println("Thread closed.");
 							}
 						}
 
@@ -535,7 +566,7 @@ public class Client {
 					threadSignal.countDown();
 					mutex.release();
 					return null;
-				}
+				}				
 				
 				size = Integer.parseInt(strBuffer);				
 
@@ -558,6 +589,7 @@ public class Client {
 				bufferedReader.readLine();
 
 				mutex.release();
+
 				try {
 					return new Media(new File(CACHE + fileName).toURI().toString());
 				} catch (MediaException e) {
@@ -621,6 +653,8 @@ public class Client {
 			printWriter.print(RPC_DISCONNECT);
 		} catch (IOException e) {
 			System.out.println("Error breaking up with Server.");
+		} catch (NullPointerException e) {
+			System.out.println("Sockets closed.");
 		}
 	}
 

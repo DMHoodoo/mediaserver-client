@@ -121,7 +121,7 @@ public class Controller implements Initializable {
 	private final String START_FILE = "resources/Welcome.mp4";
 
 	// How often (in seconds) we poll the server
-	private final int POLLING_RATE = 30;
+	private final int POLLING_RATE = 10;
 
 	// SSL Connection integration
 	private Client client;
@@ -185,39 +185,43 @@ public class Controller implements Initializable {
 
 				// get clicked on list Item
 				String fileName = mediaList.getSelectionModel().getSelectedItem();
-				File file = new File(CACHE + fileName);
+				
+				if(fileName != null) {
+					System.out.println("Asking for " + fileName);//dp
+					File file = new File(CACHE + fileName);
 
-				// Only download if file not already in cache
-				if (!file.exists()) {
+					// Only download if file not already in cache
+					if (!file.exists()) {
 
-					// Run the task to download the file in the background
-					Runnable task = new Runnable() {
-						@Override
-						public void run() {
-							CountDownLatch dummyLatch = new CountDownLatch(1);
-							Media file = client.receiveMediaFromServer(fileName, dummyLatch);
+						// Run the task to download the file in the background
+						Runnable task = new Runnable() {
+							@Override
+							public void run() {
+								CountDownLatch dummyLatch = new CountDownLatch(1);
+								Media file = client.receiveMediaFromServer(fileName, dummyLatch);
 
-							// When it's done running, setup the media player.
-							Platform.runLater(new Runnable() {
-								@Override
-								public void run() {
-									setupNewFile(file);
-								}
-							});
+								// When it's done running, setup the media player.
+								Platform.runLater(new Runnable() {
+									@Override
+									public void run() {
+										System.out.println("Playing.");//dp
+										setupNewFile(file);
+									}
+								});
+							}
+						};
+
+						task.run();
+
+					} else {
+						try {
+							Media currMedia = new Media(file.toURI().toString());
+							setupNewFile(currMedia);
+						} catch (MediaException e) {
+							System.out.println("Unsupported media");
 						}
-					};
-
-					task.run();
-
-				} else {
-					try {
-						Media currMedia = new Media(file.toURI().toString());
-						setupNewFile(currMedia);
-					} catch (MediaException e) {
-						System.out.println("Unsupported media");
 					}
 				}
-
 			}
 		});
 
@@ -235,10 +239,10 @@ public class Controller implements Initializable {
 			Optional<ButtonType> confirm = a.showAndWait();
 			File directory = new File(CACHE);
 			if (confirm.isPresent() && confirm.get() == ButtonType.YES) {
-				// closes media player
-				mediaPlayer.dispose();
 				// closes refresh thread
 				updateListService.cancel();
+				// closes media player
+				mediaPlayer.dispose();
 				// close server connection
 				client.breakupWithServer();
 				// closes window
@@ -716,7 +720,7 @@ public class Controller implements Initializable {
 				protected ListView<String> call() throws Exception {
 					ListView<String> mediaList = client.receiveListFromServer(getMediaList());
 					return mediaList;
-				}
+				} 
 			};
 		};
 	}
