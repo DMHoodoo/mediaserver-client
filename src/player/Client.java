@@ -14,6 +14,8 @@ import javax.net.ssl.SSLSocketFactory;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
+import javafx.concurrent.Worker;
 import javafx.scene.control.ListView;
 
 
@@ -97,7 +99,8 @@ public class Client {
 	 * Checks server response to validate connection is active
 	 * 
 	 * @param bufferedReader
-	 * @return
+	 * @return null if an error was encountered, 
+	 *         otherwise what was returned from the socket read
 	 */
 	public String processResponse(BufferedReader bufferedReader) {
 		String serverReply = null;
@@ -172,9 +175,7 @@ public class Client {
 					if(buffer == null) {
 						threadSignal.countDown();
 						return;															
-					}
-
-					if(buffer != null) {
+					} else {
 						System.out.println("Connetion verified.");
 						isConnected = true;
 						connectionConfirmed = true;
@@ -274,10 +275,15 @@ public class Client {
 	 * 
 	 * @param mediaList from GUI view.
 	 */
-	public void receiveListFromServer(ListView<String> finalMediaList) {
+	public ListView<String> receiveListFromServer(ListView<String> finalMediaList) {
+//		final Worker work = new Worker();
+//		final Worker work2 = new Worker2();
+//		
+//		
+//		Task task = new Runnable();
 		
-		Runnable task = () -> {
-			Platform.runLater(() -> {
+//		Runnable task = () -> {
+//			Platform.runLater(() -> {
 				//list assembly items
 				ObservableList<String> tempMediaList = FXCollections.observableArrayList();
 				HashSet<String> allFiles = new HashSet<>();
@@ -310,7 +316,7 @@ public class Client {
 						buffer = processResponse(bufferedReader);
 											
 						if(buffer == null) 
-							return;
+							return null;
 						
 						buffer = "-1";
 
@@ -369,8 +375,11 @@ public class Client {
 						}
 
 						//set full list to listView
-						finalMediaList.setItems(tempMediaList);
+//						finalMediaList.setItems(tempMediaList);
+						ListView<String> test = new ListView<String>();
+						test.setItems(tempMediaList);
 						System.out.println("List retreived.");
+						return test;						
 
 					}catch(IOException e) {
 						e.printStackTrace();
@@ -378,12 +387,13 @@ public class Client {
 						closeEverything(socket, bufferedReader, bufferedWriter);
 					}
 				}
-			});
+//			});
+				return finalMediaList;
 			
-		};
-		Thread thread = new Thread(task);
-		thread.setDaemon(true);
-		thread.start();
+//		};
+//		Thread thread = new Thread(task);
+//		thread.setDaemon(true);
+//		thread.start();
 
 	}
 	
@@ -506,9 +516,9 @@ public class Client {
 
 			StringBuilder sb = new StringBuilder();
 			
-			for(int i = 0; i < bytes.length; i++) {
-				sb.append(Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1));
-			}
+			for(int i = 0; i < bytes.length; i++) 
+				sb.append(String.format("%02X", bytes[i]).toLowerCase());
+			
 			
 			return sb.toString();
 		} catch (IOException e) {
@@ -542,9 +552,7 @@ public class Client {
 			    try {			
 			    	verifyThreadSignal.await();
 				}catch (InterruptedException e1) {
-					// TODO Auto-generated catch block
 					threadSignal.countDown();
-					e1.printStackTrace();
 				}
 					
 				if(isConnected) {
@@ -595,9 +603,7 @@ public class Client {
 						}
 						
 						bufferedReader.readLine();
-						
-//						bufferedReader.close();
-//						fos.close();
+
 						threadSignal.countDown();
 					} catch (IOException e) {
 						System.out.println("Error making input file streams.");

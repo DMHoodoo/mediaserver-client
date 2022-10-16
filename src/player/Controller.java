@@ -5,6 +5,8 @@ import javafx.beans.Observable;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.concurrent.ScheduledService;
+import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
@@ -40,6 +42,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import javafx.concurrent.WorkerStateEvent;
 
 /**
  * Class to manipulate and utilize the FXML GUI.
@@ -157,9 +160,37 @@ public class Controller implements Initializable {
 
     	//request list of available media
         //This will run the call every 30 seconds
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
-        executor.scheduleAtFixedRate(() -> client.receiveListFromServer(mediaList), 0, 30, TimeUnit.SECONDS);
+//        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+//        executor.scheduleAtFixedRate(() -> client.receiveListFromServer(mediaList), 0, 30, TimeUnit.SECONDS);
 
+        UpdateListService updateListService = new UpdateListService();
+        updateListService.setPeriod(Duration.seconds(5));
+        updateListService.setMediaList(mediaList);
+        updateListService.setClient(client);
+        
+        updateListService.setOnSucceeded(
+        		e -> {
+        			System.out.println("Success!! The final thing is: ");
+        			for(String test : ((ListView<String>)e.getSource().getValue()).getItems())
+        				System.out.println(test);
+        			
+        			mediaList.setItems(((ListView<String>)e.getSource().getValue()).getItems());
+//        			mediaList = (ListView<String>)e.getSource().getValue();
+        			
+//        		new EventHandler<WorkerStateEvent>() {
+//        	
+//        	@Override
+//        	public void handle(WorkerStateEvent t) {
+//        		System.out.println("SUCCESS!!! The final thing is: ");
+//        		for(String test : ((ListView<String>)t.getSource().getValue()).getItems())
+//        			System.out.println(test);
+//        		
+//        		mediaList = (ListView<String>)t.getSource().getValue();
+//        	}
+        });
+        
+
+        
         /**
          * Play button functionality
          */
@@ -237,7 +268,7 @@ public class Controller implements Initializable {
             	    	  //closes media player
             	    	  mediaPlayer.dispose();
             	    	  //closes refresh thread
-            	    	  executor.close();
+//            	    	  executor.close();
             	    	  //close server connection
             	    	  client.breakupWithServer();
             	    	  //closes window
@@ -480,7 +511,7 @@ public class Controller implements Initializable {
         });
         
         
-
+        updateListService.start();
     }
     
     /**
@@ -640,4 +671,54 @@ public class Controller implements Initializable {
             }
         }, mediaPlayer.currentTimeProperty()));
     }
+    
+    
+    private static class UpdateListService extends ScheduledService<ListView<String>> {
+    	private Client client;    	
+    	private ListView<String> mediaList;
+    	private Media currentFile;
+    	
+    	private final Media getFile() {
+    		return currentFile;
+    	}
+    	
+    	private final void setFile(Media currentFile) {
+    		this.currentFile = currentFile;
+    	}
+    	
+    	private final ListView<String> getMediaList(){
+    		return this.mediaList;
+    	}
+    	
+    	private final void setMediaList(ListView<String> mediaList) {
+    		this.mediaList = mediaList;
+    	}
+    	
+    	public final Client getClient() {
+    		return client;
+    	}
+    	
+    	public final void setClient(Client client) {
+    		this.client = client;
+    	}
+    	
+    	@Override
+    	protected Task<ListView<String>> createTask() {
+    		return new Task<>() {
+    			@Override
+    			protected ListView<String> call() throws Exception {
+    				System.out.println("Receiving list....");
+    				ListView<String> test = client.receiveListFromServer(getMediaList());
+    				
+//    				
+//    				for(String string : test.getItems()) {
+//    					System.out.println(string);
+//    				}
+    				
+    				return test;    				
+    			}    			
+    		};
+    	}
+    }    
 }
+
