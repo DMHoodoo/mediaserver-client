@@ -133,7 +133,12 @@ public class Controller implements Initializable {
 	@Override
 	public void initialize(URL url, ResourceBundle resourceBundle) {
 		Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
-
+		
+		File cacheDir = new File(CACHE);
+		for (File file : Objects.requireNonNull(cacheDir.listFiles()))
+			if (!file.isDirectory())
+				file.delete();
+		
 		/**
 		 * Media Player creation. Media wrapped in player, player wrapped in view.
 		 */
@@ -167,6 +172,7 @@ public class Controller implements Initializable {
 		updateListService.setClient(client);
 
 		updateListService.setOnSucceeded(e -> {
+			System.out.println("Setting media list...");
 			mediaList.setItems(((ListView<String>) e.getSource().getValue()).getItems());
 		});
 
