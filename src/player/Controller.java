@@ -244,11 +244,13 @@ public class Controller implements Initializable {
 			File directory = new File(CACHE);
 			if (confirm.isPresent() && confirm.get() == ButtonType.YES) {
 				// closes refresh thread
-				updateListService.cancel();
+				updateListService.cancel();				
+				// Release all active latches
+				client.releaseAllLatches();
 				// closes media player
 				mediaPlayer.dispose();
 				// close server connection
-				client.breakupWithServer();
+				client.breakupWithServer();				
 				// closes window
 				closeStage.close();
 				for (File file : Objects.requireNonNull(directory.listFiles()))

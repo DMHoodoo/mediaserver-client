@@ -5,6 +5,7 @@ import java.net.ConnectException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -58,6 +59,8 @@ public class Client {
 
 	private boolean checksumMatch = true;
 	private boolean isConnected = false;
+	
+	private ArrayList<CountDownLatch> activeLatches;
 
 	// Semaphore to ensure list retrieval/file downloads/checksum matching etc.
 	// don't overlap
@@ -71,6 +74,7 @@ public class Client {
 	public Client(SSLSocketFactory socketfact) {
 		
 		mutex = new Semaphore(1);
+		this.activeLatches = new ArrayList<CountDownLatch>();
 		
 		/**
 		 * Initial connection attempt for sockets and data movers
@@ -143,7 +147,8 @@ public class Client {
 			e.printStackTrace();
 		}
 
-		//if(serverReply != null) {
+		if(serverReply != null) {
+
 			splitString = serverReply.split(" ");
 
 			if (splitString.length == 2) {
@@ -179,13 +184,18 @@ public class Client {
 				}
 			} else 
 				return serverReply;
-		//}
-		//else {
-		//	return null;
-		//}
+		}
+		else {
+			return null;
+		}
 		
 	}
-
+	
+	public void releaseAllLatches() {
+		for(CountDownLatch latch : this.activeLatches)
+			latch.countDown();
+	}
+	
 	/**
 	 * Checks if client is connected. If false new connection is attempted several
 	 * times.
@@ -335,16 +345,19 @@ public class Client {
 		File[] cacheFiles = new File(CACHE).listFiles();
 
 		CountDownLatch verifyThreadSignal = new CountDownLatch(1);
+		this.activeLatches.add(verifyThreadSignal);
 		
 		System.out.println("Verifying connection");
 		verifyConnection(verifyThreadSignal);
 		System.out.println("Connection verified");
-		
+
 		try {
 			verifyThreadSignal.await();
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
 		}
+		
+		this.activeLatches.remove(verifyThreadSignal);
 		
 		System.out.println("Thread awaited");
 
@@ -397,6 +410,7 @@ public class Client {
 				for (File file : cacheFiles) {
 					if (file.isFile()) {
 						CountDownLatch threadSignal = new CountDownLatch(1);
+						this.activeLatches.add(threadSignal);
 						
 						validateFileToServer(file.getName(), threadSignal);
 
@@ -405,9 +419,15 @@ public class Client {
 						} catch (InterruptedException e) {
 							e.printStackTrace();
 						}
-
+						
+						this.activeLatches.remove(threadSignal);
+						
 						CountDownLatch threadSignal2 = new CountDownLatch(1);
+						
+						
+						
 						if (!checksumMatch) {
+							this.activeLatches.add(threadSignal2);
 							checksumMatch = true;
 
 							receiveMediaFromServer(file.getName(), threadSignal2);
@@ -417,6 +437,7 @@ public class Client {
 							} catch (InterruptedException e) {
 								System.out.println("Thread closed.");
 							}
+							this.activeLatches.remove(threadSignal2);
 						}
 
 						allFiles.add(file.getName());
@@ -549,14 +570,17 @@ public class Client {
 		int remaining = 0;
 
 		CountDownLatch verifyThreadSignal = new CountDownLatch(1);
-
+		this.activeLatches.add(verifyThreadSignal);
+		
 		verifyConnection(verifyThreadSignal);
 
 		try {
 			verifyThreadSignal.await();
 		} catch (InterruptedException e1) {
 			threadSignal.countDown();
-		}
+		}	
+		
+		this.activeLatches.remove(verifyThreadSignal);
 
 		if (isConnected) {
 			try {
@@ -657,6 +681,7 @@ public class Client {
 
 	public void breakupWithServer() {
 		CountDownLatch verifyThreadSignal = new CountDownLatch(1);
+		
 
 		verifyConnection(verifyThreadSignal);
 
