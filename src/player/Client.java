@@ -15,14 +15,17 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.ScheduledService;
+import javafx.concurrent.Task;
 import javafx.scene.control.ListView;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaException;
+import javafx.util.Duration;
 
 /**
  * Class to create and use an SSL client connection
  * 
- * @author Dacia Pennington
+ * @author Dacia Pennington Hassan Khan
  *
  */
 public class Client {
@@ -42,7 +45,7 @@ public class Client {
 	static final int TOO_FEW_ARGS = 1;
 	static final int TOO_MANY_ARGS = 2;
 	static final int MALFORMED_REQUEST = 3;
-	
+
 	// socket parts
 	private SSLSocketFactory socketfact;
 	private SSLSocket socket;
@@ -53,18 +56,22 @@ public class Client {
 	private PrintWriter printWriter;
 
 	private String buffer;
-	private final int PORT_A = 4433;
-	private final int PORT_B = 4434;
+	private final static int PORT_A = 4433;
+	private final static int PORT_B = 4434;
 	private final String CACHE = "cache/";
 
 	private boolean checksumMatch = true;
 	private boolean isConnected = false;
-	
+
 	private ArrayList<CountDownLatch> activeLatches;
+
+	private int RECONNECT_POLLING_RATE = 25;
 
 	// Semaphore to ensure list retrieval/file downloads/checksum matching etc.
 	// don't overlap
 	private Semaphore mutex;
+
+	ReconnectService reconnectService;
 
 	/**
 	 * Constructor for Client socket creation
@@ -72,10 +79,28 @@ public class Client {
 	 * @param socketfact
 	 */
 	public Client(SSLSocketFactory socketfact) {
-		
+
 		mutex = new Semaphore(1);
 		this.activeLatches = new ArrayList<CountDownLatch>();
-		
+
+		reconnectService = new ReconnectService();
+
+		reconnectService.setToRun(false);
+
+		reconnectService.setPeriod(Duration.seconds(RECONNECT_POLLING_RATE));
+
+		reconnectService.setOnSucceeded(e -> {
+			if ((SSLSocket) e.getSource().getValue() != null) {
+				reconnectService.setToRun(false);
+				socket = (SSLSocket) e.getSource().getValue();
+			}
+		});
+
+		reconnectService.setOnFailed(e -> {
+			System.out.println("Reconnect service failed");
+			reconnectService.setToRun(true);
+		});
+
 		/**
 		 * Initial connection attempt for sockets and data movers
 		 */
@@ -93,25 +118,24 @@ public class Client {
 				this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 				this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 
-				
 			} catch (ConnectException e) {
 				System.out.println("Server is unavailable.");
 			} catch (SocketException e) {
 				System.out.println(e);
 			}
-			
-			if(socket == null) {
+
+			if (bufferedReader == null) {
 				try {
-	
+
 					this.socketfact = socketfact;
 					this.socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
 					socket.startHandshake();
 					System.out.println("Connection 1: Port B");
-	
+
 					// create data movers
 					this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 					this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-	
+
 					mutex = new Semaphore(1);
 				} catch (ConnectException e) {
 					System.out.println("Server is unavailable.");
@@ -125,6 +149,8 @@ public class Client {
 			System.out.println("Error creating client.");
 			closeEverything(socket, bufferedReader, bufferedWriter);
 		}
+
+		reconnectService.start();
 
 	}
 
@@ -147,7 +173,7 @@ public class Client {
 			e.printStackTrace();
 		}
 
-		if(serverReply != null) {
+		if (serverReply != null) {
 
 			splitString = serverReply.split(" ");
 
@@ -156,46 +182,49 @@ public class Client {
 				int subCode = Integer.parseInt(splitString[1].replace("\0", ""));
 
 				switch (mainCode) {
-					case RPC_REQUEST_SUCCESS:
-						return serverReply;
-					case SERVER_ERROR:
-						System.out.println("Server failure! Error Code: " + subCode);
+				case RPC_REQUEST_SUCCESS:
+					return serverReply;
+				case SERVER_ERROR:
+					System.out.println("Server failure! Error Code: " + subCode);
+					return null;
+				case RPC_ERROR:
+					switch (subCode) {
+					case INVALID_COMMAND:
+						System.out.println("Invalid command issued.");
 						return null;
-					case RPC_ERROR:
-						switch (subCode) {
-							case INVALID_COMMAND:
-								System.out.println("Invalid command issued.");
-								return null;
-							case TOO_FEW_ARGS:
-								System.out.println("Too few arguments supplied to command");
-								return null;
-							case TOO_MANY_ARGS:
-								System.out.println("Too many arguments supplied to command");
-								return null;
-							case MALFORMED_REQUEST:
-								System.out.println("Malformed request");
-								return null;
-							default:
-								System.out.println("Undefined error");
-								return null;					
-							}
+					case TOO_FEW_ARGS:
+						System.out.println("Too few arguments supplied to command");
+						return null;
+					case TOO_MANY_ARGS:
+						System.out.println("Too many arguments supplied to command");
+						return null;
+					case MALFORMED_REQUEST:
+						System.out.println("Malformed request");
+						return null;
 					default:
-						return serverReply;
+						System.out.println("Undefined error");
+						return null;
+					}
+				default:
+					return serverReply;
 				}
-			} else 
+			} else
 				return serverReply;
-		}
-		else {
+		} else {
 			return null;
 		}
-		
+
 	}
-	
+
 	public void releaseAllLatches() {
-		for(CountDownLatch latch : this.activeLatches)
+		for (CountDownLatch latch : this.activeLatches)
 			latch.countDown();
 	}
-	
+
+	public void releaseMutex() {
+		this.mutex.release();
+	}
+
 	/**
 	 * Checks if client is connected. If false new connection is attempted several
 	 * times.
@@ -234,97 +263,22 @@ public class Client {
 					e1.printStackTrace();
 				} catch (NullPointerException e) {
 					System.out.println("Encountered a null socket.");
-				} 
+				}
 
-				
 				if (!connectionConfirmed) {
 					isConnected = false;
-					Object obj = new Object();
 
-					// if not connected, attempt both ports x5
-					try {
-						synchronized (obj) {
+					reconnectService.setSocket(socket);
+					reconnectService.setSockFact(socketfact);
+					reconnectService.setToRun(true);
 
-							// try port A
-							for (int i = 1; i < 6 && !connectionConfirmed; i++) {
-
-								try {
-									System.out.println("Retrying DEFAULT port. Attempt " + i);
-									socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
-									socket.startHandshake();
-									System.out.println("Connection Retry: Port A");
-									// create data movers
-									bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-									bufferedWriter = new BufferedWriter(
-											new OutputStreamWriter(socket.getOutputStream()));
-
-									isConnected = true;
-									connectionConfirmed = true;
-									System.out.println("Connection re-established!");
-									threadSignal.countDown();
-								} catch (SocketException e) {
-									System.out.println("Connection failed, server unavailable." + e);
-									isConnected = false;
-								} finally {
-									try {
-										obj.wait(3000);
-									} catch (InterruptedException e) {
-										System.out.println("Interrupted on wait cycle 1.");
-										e.printStackTrace();
-									}
-								}
-
-							}
-
-							// try port B
-							if (!connectionConfirmed) {
-								for (int i = 1; i < 6 && !connectionConfirmed; ++i) {
-									try {
-										System.out.println("Retrying BACKUP port");										
-										socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
-										socket.startHandshake();
-										System.out.println("Connection Retry: Port B");
-
-										// create data movers
-										bufferedReader = new BufferedReader(
-												new InputStreamReader(socket.getInputStream()));
-										bufferedWriter = new BufferedWriter(
-												new OutputStreamWriter(socket.getOutputStream()));
-
-										isConnected = true;
-										connectionConfirmed = true;
-										System.out.println("Connection re-established!");
-										threadSignal.countDown();
-									} catch (SocketException e) {
-										System.out.println("Server is unavailable " + e);
-										isConnected = false;
-									} finally {
-										try {
-											obj.wait(1000);
-										} catch (InterruptedException e) {
-											System.out.println("Interrupted on wait cycle 2.");
-											e.printStackTrace();
-										}
-									}
-								}
-							}
-						}
-					} catch (UnknownHostException e) {
-						System.out.println("Error creating client. Unknown host in verifyConnection().");
-						threadSignal.countDown();
-						e.printStackTrace();
-						isConnected = false;
-					} catch (IOException e) {
-						System.out.println("Error creating client. IO Exception in verifyConnection().");
-						threadSignal.countDown();
-						e.printStackTrace();
-						isConnected = false;
-					}
+					threadSignal.countDown();
 				}
 			}
 		}).start();
+
 	}
-	
+
 	/**
 	 * Accept list of available filenames from Server Refreshes every 30 seconds
 	 * 
@@ -332,34 +286,28 @@ public class Client {
 	 */
 	public ListView<String> receiveListFromServer(ListView<String> finalMediaList) {
 
-		System.out.println("Receiving list");
 		try {
 			mutex.acquire();
 		} catch (InterruptedException e2) {
 			System.out.println(e2);
 		}
-		System.out.println("Mutex acquired");
-		
+
 		ObservableList<String> tempMediaList = FXCollections.observableArrayList();
 		HashSet<String> allFiles = new HashSet<>();
 		File[] cacheFiles = new File(CACHE).listFiles();
 
 		CountDownLatch verifyThreadSignal = new CountDownLatch(1);
 		this.activeLatches.add(verifyThreadSignal);
-		
-		System.out.println("Verifying connection");
+
 		verifyConnection(verifyThreadSignal);
-		System.out.println("Connection verified");
 
 		try {
 			verifyThreadSignal.await();
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
 		}
-		
+
 		this.activeLatches.remove(verifyThreadSignal);
-		
-		System.out.println("Thread awaited");
 
 		if (this.isConnected) {
 
@@ -367,9 +315,8 @@ public class Client {
 				printWriter = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())));
 
 				// send RPC
-				System.out.println("Sending list request.");
-				printWriter.print(RPC_REQUEST_LISTING);
-
+				printWriter.print(RPC_REQUEST_LISTING + "\0");
+				printWriter.flush();
 				if (printWriter.checkError()) {
 					System.err.println("Client: Error writing to socket");
 				}
@@ -399,8 +346,6 @@ public class Client {
 						allFiles.add(buffer);
 				}
 
-				printWriter.flush();
-				
 				mutex.release();
 
 				/**
@@ -409,9 +354,11 @@ public class Client {
 				 */
 				for (File file : cacheFiles) {
 					if (file.isFile()) {
+						this.releaseAllLatches();
+
 						CountDownLatch threadSignal = new CountDownLatch(1);
 						this.activeLatches.add(threadSignal);
-						
+
 						validateFileToServer(file.getName(), threadSignal);
 
 						try {
@@ -419,13 +366,11 @@ public class Client {
 						} catch (InterruptedException e) {
 							e.printStackTrace();
 						}
-						
+
 						this.activeLatches.remove(threadSignal);
-						
+
 						CountDownLatch threadSignal2 = new CountDownLatch(1);
-						
-						
-						
+
 						if (!checksumMatch) {
 							this.activeLatches.add(threadSignal2);
 							checksumMatch = true;
@@ -435,7 +380,7 @@ public class Client {
 							try {
 								threadSignal2.await();
 							} catch (InterruptedException e) {
-								System.out.println("Thread closed.");
+								System.out.println(e);
 							}
 							this.activeLatches.remove(threadSignal2);
 						}
@@ -443,10 +388,9 @@ public class Client {
 						allFiles.add(file.getName());
 					}
 				}
-				
-				for (String filename : allFiles) 
+
+				for (String filename : allFiles)
 					tempMediaList.add(filename);
-				
 
 				ListView<String> listToReturn = new ListView<String>();
 				listToReturn.setItems(tempMediaList);
@@ -460,7 +404,7 @@ public class Client {
 				closeEverything(socket, bufferedReader, bufferedWriter);
 			}
 		}
-		
+
 		mutex.release();
 		return finalMediaList;
 	}
@@ -474,46 +418,41 @@ public class Client {
 	 */
 	public void validateFileToServer(String fileName, CountDownLatch threadSignal) {
 
-		new Thread(new Runnable() {
+		try {
+			PrintWriter printWriter = new PrintWriter(
+					new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())));
 
-			@Override
-			public void run() {
+			BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-				try {
-					PrintWriter printWriter = new PrintWriter(
-							new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())));
+			printWriter.write(RPC_REQUEST_MD5 + " \"" + fileName + "\"\0");
+			printWriter.flush();
 
-					BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+			String buffer;
 
-					printWriter.print(RPC_REQUEST_MD5 + " \"" + fileName + "\"");
+			buffer = processResponse(bufferedReader);
 
-					String buffer;
-
-					buffer = processResponse(bufferedReader);
-
-					if (buffer == null) {
-						threadSignal.countDown();
-						return;
-					}
-
-					MessageDigest md = MessageDigest.getInstance("MD5");
-
-					File file = new File("cache/" + fileName);
-					String checksum = checksum(md, file);
-
-					printWriter.flush();
-
-					checksumMatch = (checksum.equals(buffer));
-
-					threadSignal.countDown();
-
-				} catch (IOException e) {
-					System.out.println("IOException encountered " + e);
-				} catch (NoSuchAlgorithmException e) {
-					System.out.println("NoSuchAlgorithm Exception: " + e);
-				}
+			threadSignal.countDown();
+			if (buffer == null) {
+				threadSignal.countDown();
+				return;
 			}
-		}).start();
+
+			MessageDigest md = MessageDigest.getInstance("MD5");
+
+			File file = new File("cache/" + fileName);
+			String checksum = checksum(md, file);
+
+			checksumMatch = (checksum.equals(buffer));
+
+			threadSignal.countDown();
+
+		} catch (IOException e) {
+			System.out.println("IOException encountered " + e);
+		} catch (NoSuchAlgorithmException e) {
+			System.out.println("NoSuchAlgorithm Exception: " + e);
+		}
+
+		threadSignal.countDown();
 
 	}
 
@@ -530,9 +469,9 @@ public class Client {
 		int bytesRead = 0;
 
 		try {
-			while ((bytesRead = fileInputStream.read(byteArray)) != -1) 
+			while ((bytesRead = fileInputStream.read(byteArray)) != -1)
 				digest.update(byteArray, 0, bytesRead);
-			
+
 			fileInputStream.close();
 
 			byte[] bytes = digest.digest();
@@ -562,7 +501,7 @@ public class Client {
 			mutex.acquire();
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
-		}		
+		}
 
 		int size;
 		byte[] buffer;
@@ -571,23 +510,22 @@ public class Client {
 
 		CountDownLatch verifyThreadSignal = new CountDownLatch(1);
 		this.activeLatches.add(verifyThreadSignal);
-		
+
 		verifyConnection(verifyThreadSignal);
 
 		try {
 			verifyThreadSignal.await();
 		} catch (InterruptedException e1) {
 			threadSignal.countDown();
-		}	
-		
+		}
+
 		this.activeLatches.remove(verifyThreadSignal);
 
 		if (isConnected) {
 			try {
 				printWriter = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())));
 
-				printWriter.print(RPC_REQUEST_FILE + " \"" + fileName + "\"");
-
+				printWriter.write(RPC_REQUEST_FILE + " \"" + fileName + "\"");
 
 				if (printWriter.checkError())
 					System.err.println("Client: Error writing to socket");
@@ -603,9 +541,9 @@ public class Client {
 					threadSignal.countDown();
 					mutex.release();
 					return null;
-				}				
-				
-				size = Integer.parseInt(strBuffer);				
+				}
+
+				size = Integer.parseInt(strBuffer);
 
 				// second read for file data
 				DataInputStream dis = new DataInputStream(socket.getInputStream());
@@ -620,9 +558,9 @@ public class Client {
 					remaining -= read;
 					fos.write(buffer, 0, read);
 				}
-				
+
 				fos.close();
-								
+
 				bufferedReader.readLine();
 
 				mutex.release();
@@ -638,7 +576,6 @@ public class Client {
 				e.printStackTrace();
 			}
 		} else {
-			System.out.println("Releasing download mutex");
 			mutex.release();
 			threadSignal.countDown();
 		}
@@ -681,19 +618,118 @@ public class Client {
 
 	public void breakupWithServer() {
 		CountDownLatch verifyThreadSignal = new CountDownLatch(1);
-		
 
 		verifyConnection(verifyThreadSignal);
 
 		try {
 			printWriter = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())));
 
-			printWriter.print(RPC_DISCONNECT);
+			printWriter.write(RPC_DISCONNECT + "\0");
+			printWriter.flush();
 		} catch (IOException e) {
 			System.out.println("Error breaking up with Server.");
 		} catch (NullPointerException e) {
 			System.out.println("Sockets closed.");
 		}
+	}
+
+	/**
+	 * UpdateListService, handles the updating of the list for a set interval.
+	 * Enables to run in the background so primary JavaFX thread is not interrupted.
+	 * 
+	 * @author Hassan Khan/Dacia Pennington
+	 *
+	 */
+	private static class ReconnectService extends ScheduledService<SSLSocket> {
+		private SSLSocket socket;
+		private Boolean toRun;
+		private SSLSocketFactory socketfact;
+
+		public final void setSockFact(SSLSocketFactory sockfact) {
+			this.socketfact = sockfact;
+		}
+
+		public final void setToRun(Boolean bool) {
+			this.toRun = bool;
+		}
+
+		public final void setSocket(SSLSocket socket) {
+			this.socket = socket;
+		}
+
+		@Override
+		protected Task<SSLSocket> createTask() {
+			return new Task<>() {
+				@Override
+				protected SSLSocket call() throws Exception {
+					if (toRun) {
+						System.out.println("Attempting to reconnect!");
+						Object obj = new Object();
+
+						try {
+							synchronized (obj) {
+								// try port A
+								for (int i = 1; i < 6; i++) {
+
+									try {
+										System.out.println("Retrying DEFAULT port. Attempt " + i);
+										socket = (SSLSocket) socketfact.createSocket("localhost", PORT_A);
+										socket.startHandshake();
+										System.out.println("Connection Retry: Port A");
+
+										System.out.println("Connection re-established!");
+										return socket;
+									} catch (SocketException e) {
+										System.out.println("Connection failed, server unavailable." + e);
+									} finally {
+										try {
+											obj.wait(3000);
+										} catch (InterruptedException e) {
+											System.out.println("Interrupted on wait cycle 1.");
+											e.printStackTrace();
+										}
+									}
+
+								}
+
+								// try port B
+								for (int i = 1; i < 6; ++i) {
+									try {
+										System.out.println("Retrying BACKUP port");
+										socket = (SSLSocket) socketfact.createSocket("localhost", PORT_B);
+										socket.startHandshake();
+										System.out.println("Connection Retry: Port B");
+
+										System.out.println("Connection re-established!");
+										return socket;
+									} catch (SocketException e) {
+										System.out.println("Server is unavailable " + e);
+									} finally {
+										try {
+											obj.wait(1000);
+										} catch (InterruptedException e) {
+											System.out.println("Interrupted on wait cycle 2.");
+											e.printStackTrace();
+										}
+									}
+								}
+
+							}
+						} catch (UnknownHostException e) {
+							System.out.println("Error creating client. Unknown host in verifyConnection().");
+							e.printStackTrace();
+						} catch (IOException e) {
+							System.out.println("Error creating client. IO Exception in verifyConnection().");
+							e.printStackTrace();
+						}
+
+						return null;
+
+					} else
+						return socket;
+				}
+			};
+		};
 	}
 
 }

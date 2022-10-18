@@ -121,7 +121,10 @@ public class Controller implements Initializable {
 	private final String START_FILE = "resources/Welcome.mp4";
 
 	// How often (in seconds) we poll the server
-	private final int POLLING_RATE = 5;
+	private final int POLLING_RATE = 10;
+
+	// Service to update the list periodically
+	UpdateListService updateListService;
 
 	// SSL Connection integration
 	private Client client;
@@ -133,12 +136,12 @@ public class Controller implements Initializable {
 	@Override
 	public void initialize(URL url, ResourceBundle resourceBundle) {
 		Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
-		
+
 		File cacheDir = new File(CACHE);
 		for (File file : Objects.requireNonNull(cacheDir.listFiles()))
 			if (!file.isDirectory())
 				file.delete();
-		
+
 		/**
 		 * Media Player creation. Media wrapped in player, player wrapped in view.
 		 */
@@ -166,18 +169,18 @@ public class Controller implements Initializable {
 
 		// request list of available media
 		// This will run the call every 30 seconds
-		UpdateListService updateListService = new UpdateListService();
+		updateListService = new UpdateListService();
 		updateListService.setPeriod(Duration.seconds(POLLING_RATE));
 		updateListService.setMediaList(mediaList);
 		updateListService.setClient(client);
 
 		updateListService.setOnSucceeded(e -> {
-			System.out.println("Setting media list...");
+			client.releaseMutex();
 			mediaList.setItems(((ListView<String>) e.getSource().getValue()).getItems());
 		});
-		
+
 		updateListService.setOnFailed(e -> {
-			System.out.println("Update list service failed!");
+			client.releaseMutex();
 		});
 
 		/**
@@ -189,9 +192,8 @@ public class Controller implements Initializable {
 
 				// get clicked on list Item
 				String fileName = mediaList.getSelectionModel().getSelectedItem();
-				
-				if(fileName != null) {
-					System.out.println("Asking for " + fileName);//dp
+
+				if (fileName != null) {
 					File file = new File(CACHE + fileName);
 
 					// Only download if file not already in cache
@@ -208,7 +210,7 @@ public class Controller implements Initializable {
 								Platform.runLater(new Runnable() {
 									@Override
 									public void run() {
-										System.out.println("Playing.");//dp
+										System.out.println("Playing.");// dp
 										setupNewFile(file);
 									}
 								});
@@ -244,18 +246,20 @@ public class Controller implements Initializable {
 			File directory = new File(CACHE);
 			if (confirm.isPresent() && confirm.get() == ButtonType.YES) {
 				// closes refresh thread
-				updateListService.cancel();				
+				updateListService.cancel();
 				// Release all active latches
 				client.releaseAllLatches();
 				// closes media player
 				mediaPlayer.dispose();
 				// close server connection
-				client.breakupWithServer();				
+				client.breakupWithServer();
 				// closes window
 				closeStage.close();
 				for (File file : Objects.requireNonNull(directory.listFiles()))
 					if (!file.isDirectory())
 						file.delete();
+				
+				System.exit(0);
 			} else
 				mediaPlayer.play();
 
@@ -700,7 +704,7 @@ public class Controller implements Initializable {
 	 * UpdateListService, handles the updating of the list for a set interval.
 	 * Enables to run in the background so primary JavaFX thread is not interrupted.
 	 * 
-	 * @author Hassan Khan
+	 * @author Hassan Khan/Dacia Pennington
 	 *
 	 */
 	private static class UpdateListService extends ScheduledService<ListView<String>> {
@@ -724,11 +728,9 @@ public class Controller implements Initializable {
 			return new Task<>() {
 				@Override
 				protected ListView<String> call() throws Exception {
-					System.out.println("Attempting to receive list...");
-					System.out.println(client);
 					ListView<String> mediaList = client.receiveListFromServer(getMediaList());
 					return mediaList;
-				} 
+				}
 			};
 		};
 	}
